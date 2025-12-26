@@ -3,125 +3,120 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Acceso Administrativo</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <title>Sistemas DevPatec - Acceso</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
-        body {
-            margin: 0;
-            font-family: 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        body { 
+            background: #f8f9fa; 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column;
+            align-items: center; 
+            justify-content: center; 
         }
-        .login-card {
+        .card-login { 
+            width: 100%; 
+            max-width: 380px; 
+            border: none; 
+            border-radius: 15px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
             background: white;
-            padding: 40px;
-            width: 100%;
-            max-width: 400px;
-            border-radius: 16px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+        .footer-branding {
+            margin-top: 20px;
             text-align: center;
+            font-size: 0.9rem;
+            color: #6c757d;
         }
-        .logo { font-size: 32px; margin-bottom: 10px; }
-        h2 { color: #1e293b; margin-bottom: 30px; }
-        input {
-            width: 100%;
-            padding: 14px;
-            margin-bottom: 15px;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            box-sizing: border-box;
-            font-size: 16px;
-        }
-        button {
-            width: 100%;
-            padding: 14px;
-            background-color: #2563eb;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
+        .footer-branding a {
+            text-decoration: none;
+            color: #0d6efd;
             font-weight: bold;
-            cursor: pointer;
-            transition: 0.3s;
-        }
-        button:hover { background-color: #1d4ed8; }
-        #mensaje-estado { 
-            margin-top: 15px; 
-            font-size: 14px; 
-            font-weight: bold;
-            display: none;
         }
     </style>
 </head>
 <body>
-    <div class="login-card">
-        <div class="logo">👨‍🍳</div>
-        <h2>Portal Super Admin</h2>
+
+    <div class="card card-login p-4">
+        <h2 class="text-center fw-bold mb-1 text-primary">Sistemas DevPatec</h2>
+        <p class="text-center text-muted small mb-4">Gestión Inteligente de Restaurantes</p>
+        
+        <div id="msg" class="text-center mb-3 small"></div>
+        
         <form id="loginForm">
-            <input type="email" id="email" placeholder="Correo electrónico" required>
-            <input type="password" id="password" placeholder="Contraseña" required>
-            <button type="submit" id="btn-login">Ingresar al Sistema</button>
+            <div class="mb-3">
+                <label class="form-label">Usuario</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-person"></i></span>
+                    <input type="text" id="user" class="form-control" placeholder="admin" required>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Contraseña</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                    <input type="password" id="pass" class="form-control" placeholder="******" required>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">INGRESAR</button>
         </form>
-        <div id="mensaje-estado"></div>
     </div>
 
-    <script>
-        // ⚠️ IMPORTANTE: PEGA AQUÍ TUS CLAVES DE SUPABASE
-        // (Las mismas que pusiste en el archivo .env)
-        const MY_SUPABASE_URL = 'https://flzpgdfeczhawhcqjoiu.supabase.co'; 
-        const MY_SUPABASE_KEY = 'sb_publishable_wTU_75q87Nc4y1TgLf0k0Q_N-3R24xq'; 
-        
-        // Inicializamos el cliente (Usamos nombres distintos para evitar conflictos)
-        const { createClient } = supabase;
-        const _supabase = createClient(MY_SUPABASE_URL, MY_SUPABASE_KEY);
+    <div class="footer-branding">
+        <span>by <br> 
+            <a href="https://wa.me/524741082768?text=Hola%20Ing.%20Mauricio,%20me%20interesa%20información%20sobre%20el%20Sistema%20DevPatec" target="_blank">
+                Ing. Jose Mauricio Hernández Bueno
+            </a>
+        </span>
+    </div>
 
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
+        import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
+        const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        document.getElementById('loginForm').onsubmit = async (e) => {
             e.preventDefault();
-            
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            const btn = document.getElementById('btn-login');
-            const msgDiv = document.getElementById('mensaje-estado');
+            const u = document.getElementById('user').value.trim();
+            const p = document.getElementById('pass').value.trim();
+            const m = document.getElementById('msg');
 
-            // Feedback visual
-            btn.innerText = "Verificando...";
-            btn.disabled = true;
-            msgDiv.style.display = 'none';
+            m.innerText = "Verificando...";
+            m.style.color = "blue";
 
             try {
-                // Intentamos Login
-                const { data, error } = await _supabase.auth.signInWithPassword({ 
-                    email: email, 
-                    password: password 
-                });
+                const { data: usuario, error } = await supabase
+                    .from('usuarios')
+                    .select('*')
+                    .eq('username', u)
+                    .eq('password', p)
+                    .eq('activo', true)
+                    .maybeSingle();
 
-                if (error) {
-                    // Si falla
-                    msgDiv.style.display = 'block';
-                    msgDiv.style.color = 'red';
-                    msgDiv.innerText = "❌ Error: " + error.message;
-                    btn.innerText = "Reintentar";
-                    btn.disabled = false;
-                } else {
-                    // Si funciona
-                    msgDiv.style.display = 'block';
-                    msgDiv.style.color = 'green';
-                    msgDiv.innerText = "✅ Login Correcto. Redirigiendo...";
-                    
-                    // Guardamos el token y nos vamos al dashboard
-                    localStorage.setItem('sb-token', data.session.access_token);
-                    setTimeout(() => {
-                        window.location.href = '/admin';
-                    }, 1000);
+                if (error) throw error;
+
+                if (!usuario) {
+                    m.innerText = "Credenciales incorrectas";
+                    m.style.color = "red";
+                    return;
                 }
+
+                localStorage.setItem('usuario_actual', usuario.username);
+                localStorage.setItem('rol', usuario.rol);
+                localStorage.setItem('empresa_id', usuario.empresa_id);
+
+                if (usuario.rol === 'super_admin') {
+                    window.location.href = "dashboard.html";
+                } else {
+                    window.location.href = "panel-dueno.html";
+                }
+
             } catch (err) {
-                alert("Error crítico del sistema: " + err.message);
-                btn.disabled = false;
+                m.innerText = "Error: " + err.message;
+                m.style.color = "red";
             }
-        });
+        };
     </script>
 </body>
 </html>

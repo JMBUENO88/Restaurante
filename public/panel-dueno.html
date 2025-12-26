@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistemas DevPatec - Panel Administrativo</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <style>
+        /* =========================================
+           ESTILOS GENERALES Y VARIABLES
+           ========================================= */
+        :root { 
+            --sidebar-width: 280px; 
+            --primary-dark: #1a252f; 
+            --accent-blue: #3498db; 
+            --bg-light: #f4f7f6;
+            --text-grey: #95a5a6;
+        }
+        
+        body { 
+            background: var(--bg-light); 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            overflow-x: hidden; 
+        }
+        
+        /* =========================================
+           SIDEBAR (MENÚ LATERAL)
+           ========================================= */
+        #sidebar { 
+            width: var(--sidebar-width); 
+            height: 100vh; 
+            position: fixed; 
+            top: 0; left: 0;
+            background: var(--primary-dark); 
+            color: white; 
+            z-index: 1000; 
+            transition: all 0.3s;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .sidebar-header {
+            padding: 30px 20px;
+            text-align: center;
+            background: rgba(0,0,0,0.1);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .logo-sidebar { 
+            width: 100px; 
+            height: 100px; 
+            object-fit: contain; 
+            background: white; 
+            border-radius: 50%; 
+            padding: 5px; 
+            margin-bottom: 15px; 
+            border: 4px solid var(--accent-blue);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            transition: transform 0.3s;
+        }
+        .logo-sidebar:hover { transform: scale(1.05); }
+
+        .nav-link { 
+            color: var(--text-grey); 
+            padding: 15px 25px; 
+            cursor: pointer; 
+            border-left: 5px solid transparent;
+            transition: all 0.2s ease-in-out;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
+        
+        .nav-link:hover { 
+            background: rgba(255,255,255,0.05); 
+            color: white; 
+            padding-left: 30px; /* Efecto de deslizamiento */
+        }
+        
+        .nav-link.active { 
+            background: rgba(52, 152, 219, 0.15); 
+            color: white; 
+            border-left: 5px solid var(--accent-blue); 
+        }
+
+        .nav-link i { margin-right: 15px; font-size: 1.2rem; }
+        
+        .sidebar-footer {
+            margin-top: auto;
+            padding: 20px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+
+        /* =========================================
+           CONTENIDO PRINCIPAL
+           ========================================= */
+        #content { 
+            margin-left: var(--sidebar-width); 
+            padding: 40px; 
+            min-height: 100vh; 
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 15px;
+        }
+
+        /* =========================================
+           TARJETAS Y COMPONENTES
+           ========================================= */
+        .card-custom { 
+            border: none; 
+            border-radius: 15px; 
+            box-shadow: 0 5px 20px rgba(0,0,0,0.05); 
+            background: white; 
+            margin-bottom: 25px; 
+            overflow: hidden;
+        }
+
+        /* KPIs (Cuadros de Ventas) */
+        .kpi-card { 
+            border: none; 
+            border-radius: 15px; 
+            color: white; 
+            padding: 25px; 
+            position: relative; 
+            overflow: hidden; 
+            min-height: 140px;
+            transition: transform 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .kpi-card:hover { transform: translateY(-5px); }
+        .kpi-bg-1 { background: linear-gradient(135deg, #3498db, #2980b9); }
+        .kpi-bg-2 { background: linear-gradient(135deg, #2ecc71, #27ae60); }
+        .kpi-bg-3 { background: linear-gradient(135deg, #f1c40f, #f39c12); }
+        .kpi-icon { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); font-size: 4rem; opacity: 0.2; }
+
+        /* Mesas y Zonas */
+        .zona-header { position: relative; overflow: hidden; }
+        .zona-img { width: 100%; height: 160px; object-fit: cover; transition: transform 0.5s; }
+        .card-custom:hover .zona-img { transform: scale(1.05); }
+        
+        .mesa-card { 
+            transition: 0.3s; 
+            border: 1px solid #eee; 
+            border-radius: 12px; 
+            background: #fff;
+            cursor: pointer;
+            position: relative;
+        }
+        .mesa-card:hover { transform: translateY(-3px); border-color: var(--accent-blue); box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        .btn-del-mesa { position: absolute; top: 2px; right: 2px; padding: 0 5px; font-size: 0.8rem; }
+
+        /* Productos */
+        .img-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; }
+        
+        /* Upload Preview */
+        .preview-box {
+            width: 120px; height: 120px; 
+            border: 2px dashed #ccc; 
+            border-radius: 10px; 
+            margin: 0 auto 15px;
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden; background: #f9f9f9;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .preview-box:hover { border-color: var(--accent-blue); background: #eef7ff; }
+        .preview-box img { width: 100%; height: 100%; object-fit: contain; }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <img id="sidebarLogo" src="https://via.placeholder.com/100?text=Cargando" class="logo-sidebar">
+            <h5 id="sidebarName" class="fw-bold mb-1">Cargando...</h5>
+            <small class="text-white-50 d-block mb-2">Administración</small>
+            
+            <button class="btn btn-outline-light btn-sm w-100" onclick="openModalEmpresa()">
+                <i class="bi bi-gear-fill me-1"></i> Configurar
+            </button>
+        </div>
+        
+        <nav class="nav flex-column mt-3">
+            <a class="nav-link active" onclick="showSection('resumen')">
+                <i class="bi bi-speedometer2"></i> Dashboard
+            </a>
+            <a class="nav-link" onclick="showSection('productos')">
+                <i class="bi bi-basket"></i> Menú y Productos
+            </a>
+            <a class="nav-link" onclick="showSection('mesas')">
+                <i class="bi bi-map"></i> Mapa de Mesas
+            </a>
+            <a class="nav-link" onclick="showSection('equipo')">
+                <i class="bi bi-people"></i> Equipo de Trabajo
+            </a>
+        </nav>
+        
+        <div class="sidebar-footer">
+            <a class="nav-link text-danger ps-0 justify-content-center" onclick="logout()">
+                <i class="bi bi-box-arrow-left"></i> Cerrar Sesión
+            </a>
+        </div>
+    </div>
+
+    <div id="content">
+        
+        <div class="section-header">
+            <div>
+                <h2 id="pageTitle" class="fw-bold text-dark m-0">Resumen del Negocio</h2>
+                <p class="text-muted m-0 small" id="dateDisplay">Cargando fecha...</p>
+            </div>
+            <div>
+                <span class="badge bg-primary p-2 fs-6 shadow-sm">
+                    <i class="bi bi-shield-check me-1"></i> Modo Dueño
+                </span>
+            </div>
+        </div>
+
+        <div id="sec-resumen" class="section">
+            <div class="row g-4 mb-4">
+                <div class="col-md-4">
+                    <div class="kpi-card kpi-bg-1">
+                        <p class="mb-1 opacity-75">Ventas Totales Hoy</p>
+                        <h2 class="fw-bold display-5" id="kpiVenta">$0.00</h2>
+                        <i class="bi bi-currency-dollar kpi-icon"></i>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="kpi-card kpi-bg-2">
+                        <p class="mb-1 opacity-75">Utilidad Estimada</p>
+                        <h2 class="fw-bold display-5" id="kpiUtil">$0.00</h2>
+                        <i class="bi bi-graph-up-arrow kpi-icon"></i>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="kpi-card kpi-bg-3">
+                        <p class="mb-1 opacity-75">Comandas Activas</p>
+                        <h2 class="fw-bold display-5" id="kpiOrden">0</h2>
+                        <i class="bi bi-receipt-cutoff kpi-icon"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card card-custom p-4">
+                <h5 class="fw-bold text-secondary mb-4"><i class="bi bi-clock-history me-2"></i>Actividad Reciente</h5>
+                <div class="alert alert-light border text-center py-5">
+                    <i class="bi bi-inbox fs-1 text-muted d-block mb-3"></i>
+                    <h5 class="text-muted">Esperando datos de comandas...</h5>
+                    <p class="small text-muted">Cuando los meseros comiencen a vender, aquí verás el flujo en tiempo real.</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="sec-productos" class="section" style="display:none;">
+            <div class="card card-custom p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="fw-bold m-0 text-primary">Catálogo de Productos</h4>
+                    <button class="btn btn-primary" onclick="openModalProd()">
+                        <i class="bi bi-plus-circle-fill me-2"></i> Nuevo Platillo
+                    </button>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table align-middle table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Foto</th>
+                                <th>Nombre</th>
+                                <th>Categoría</th>
+                                <th>Costo</th>
+                                <th>Venta</th>
+                                <th>Stock</th>
+                                <th class="text-end">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="listaProductos">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="sec-mesas" class="section" style="display:none;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4 class="fw-bold m-0 text-primary">Mapa del Restaurante</h4>
+                <button class="btn btn-primary" onclick="openModalZona()">
+                    <i class="bi bi-layers-fill me-2"></i> Nueva Zona
+                </button>
+            </div>
+            
+            <div id="drawZonas" class="row">
+                </div>
+        </div>
+
+        <div id="sec-equipo" class="section" style="display:none;">
+            <div class="card card-custom p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="fw-bold m-0 text-primary">Personal Registrado</h4>
+                    <button class="btn btn-primary" onclick="openModalUser()">
+                        <i class="bi bi-person-plus-fill me-2"></i> Nuevo Empleado
+                    </button>
+                </div>
+                
+                <div class="row g-3" id="listUsers">
+                    </div>
+            </div>
+        </div>
+
+    </div> <div class="modal fade" id="modalEmpresa" tabindex="-1">
+        <div class="modal-dialog">
+            <form id="formEmpresa" class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title fw-bold">Configuración del Negocio</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">Actualiza el logotipo y nombre que aparecen en los tickets y pantallas.</p>
+                    
+                    <div class="preview-box" onclick="document.getElementById('e_logo').click()">
+                        <img id="previewLogo" src="https://via.placeholder.com/100?text=Subir" title="Click para cambiar">
+                    </div>
+                    <input type="file" id="e_logo" class="d-none" accept="image/*" onchange="previewFile('e_logo','previewLogo')">
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Nombre Comercial</label>
+                        <input type="text" id="e_nom" class="form-control" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">WhatsApp del Negocio</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-success text-white"><i class="bi bi-whatsapp"></i></span>
+                            <input type="text" id="e_tel" class="form-control" placeholder="10 Digitos">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-dark fw-bold">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalUser" tabindex="-1">
+        <div class="modal-dialog">
+            <form id="formUser" class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold">Gestión de Personal</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="edit_u_id">
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Nombre Completo</label>
+                        <input type="text" id="u_nom" class="form-control" placeholder="Ej. Juan Pérez" required>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Puesto / Rol</label>
+                            <select id="u_rol" class="form-select" required>
+                                <option value="" selected disabled>Seleccionar...</option>
+                                <option value="gerente">Gerente</option>
+                                <option value="supervisor">Supervisor</option>
+                                <option value="caja">Caja</option>
+                                <option value="mesero">Mesero</option>
+                                <option value="cocina">Cocina (Pantalla)</option>
+                                <option value="bar">Bar (Pantalla)</option>
+                                <option value="repartidor">Repartidor</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Teléfono (Alertas)</label>
+                            <input type="tel" id="u_tel" class="form-control" placeholder="10 dígitos">
+                        </div>
+                    </div>
+
+                    <div class="bg-light p-3 rounded border">
+                        <h6 class="small fw-bold text-primary mb-2">Credenciales de Acceso</h6>
+                        <div class="alert alert-warning py-1 px-2 mb-2 small">
+                            <i class="bi bi-exclamation-circle"></i> El usuario debe ser único en todo el sistema.
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <input type="text" id="u_user" class="form-control form-control-sm fw-bold" placeholder="Usuario (Ej. taco_juan)" required>
+                            </div>
+                            <div class="col-6">
+                                <input type="text" id="u_pass" class="form-control form-control-sm fw-bold" placeholder="Contraseña" required>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary w-100 fw-bold">Guardar Empleado</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalProd" tabindex="-1">
+        <div class="modal-dialog">
+            <form id="formProd" class="modal-content">
+                <div class="modal-header bg-primary text-white"><h5 class="modal-title fw-bold">Producto</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <input type="hidden" id="edit_p_id">
+                    <div class="mb-3">
+                        <label class="small fw-bold">Imagen</label>
+                        <input type="file" id="p_img" class="form-control" accept="image/*">
+                    </div>
+                    <div class="mb-3"><label class="small fw-bold">Nombre</label><input type="text" id="p_nom" class="form-control" required></div>
+                    <div class="row mb-3">
+                        <div class="col-6"><label class="small fw-bold">Categoría</label><input type="text" id="p_cat" class="form-control"></div>
+                        <div class="col-6">
+                            <label class="small fw-bold">Destino</label>
+                            <select id="p_dest" class="form-select"><option value="cocina">Cocina</option><option value="barra">Barra</option></select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-4"><label class="small fw-bold">Costo</label><input type="number" id="p_costo" class="form-control" step="0.01"></div>
+                        <div class="col-4"><label class="small fw-bold">Venta</label><input type="number" id="p_venta" class="form-control" step="0.01" required></div>
+                        <div class="col-4"><label class="small fw-bold">Stock</label><input type="number" id="p_stock" class="form-control" value="0"></div>
+                    </div>
+                </div>
+                <div class="modal-footer"><button type="submit" class="btn btn-primary w-100">Guardar</button></div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalZona" tabindex="-1">
+        <div class="modal-dialog">
+            <form id="formZona" class="modal-content">
+                <div class="modal-header bg-primary text-white"><h5 class="modal-title fw-bold">Zona</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <input type="hidden" id="edit_z_id">
+                    <div class="mb-3"><label class="small fw-bold">Foto/Mapa</label><input type="file" id="z_img" class="form-control" accept="image/*"></div>
+                    <div class="mb-3"><label class="small fw-bold">Nombre</label><input type="text" id="z_nom" class="form-control" required></div>
+                </div>
+                <div class="modal-footer"><button type="submit" class="btn btn-primary w-100">Guardar</button></div>
+            </form>
+        </div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
+        import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
+        const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const empresa_id = localStorage.getItem('empresa_id');
+
+        // --- UTILIDADES ---
+        window.previewFile = (inputId, imgId) => {
+            const file = document.getElementById(inputId).files[0];
+            if(file){
+                const reader = new FileReader();
+                reader.onload = (e) => document.getElementById(imgId).src = e.target.result;
+                reader.readAsDataURL(file);
+            }
+        };
+
+        // --- INICIALIZACIÓN ---
+        window.onload = async () => {
+            if(!empresa_id) { window.location.href = 'index.html'; return; }
+            
+            // Fecha bonita
+            const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('dateDisplay').innerText = new Date().toLocaleDateString('es-MX', opts);
+
+            // Cargar datos
+            await cargarEmpresa();
+            cargarTodo();
+        };
+
+        window.logout = () => { localStorage.clear(); window.location.href = 'index.html'; };
+
+        window.showSection = (id) => {
+            document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+            document.getElementById('sec-' + id).style.display = 'block';
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            
+            const titles = { 'resumen': 'Resumen del Negocio', 'productos': 'Gestión de Menú', 'mesas': 'Zonas y Mesas', 'equipo': 'Personal' };
+            document.getElementById('pageTitle').innerText = titles[id];
+        };
+
+        async function cargarTodo() {
+            cargarProductos();
+            cargarZonasYMesas();
+            cargarUsuarios();
+        }
+
+        // --- 1. EMPRESA (CARGAR Y EDITAR) ---
+        async function cargarEmpresa() {
+            try {
+                // Buscamos la empresa en BD usando el ID guardado
+                const { data, error } = await supabase.from('empresas').select('*').eq('id', empresa_id).single();
+                
+                if(data) {
+                    // Actualizamos Sidebar
+                    document.getElementById('sidebarName').innerText = data.nombre_negocio;
+                    
+                    if(data.logo_url) {
+                        document.getElementById('sidebarLogo').src = data.logo_url;
+                        document.getElementById('previewLogo').src = data.logo_url;
+                    } else {
+                        document.getElementById('sidebarLogo').src = "https://via.placeholder.com/100?text=S/L";
+                    }
+
+                    // Prellenamos el modal de configuración
+                    document.getElementById('e_nom').value = data.nombre_negocio;
+                    document.getElementById('e_tel').value = data.telefono ? data.telefono.replace(/^52/, '') : '';
+                }
+            } catch (err) { console.error("Error cargando empresa:", err); }
+        }
+
+        window.openModalEmpresa = () => new bootstrap.Modal(document.getElementById('modalEmpresa')).show();
+
+        document.getElementById('formEmpresa').onsubmit = async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button[type="submit"]');
+            btn.disabled = true; btn.innerText = "Guardando...";
+
+            try {
+                const file = document.getElementById('e_logo').files[0];
+                let updateData = {
+                    nombre_negocio: document.getElementById('e_nom').value,
+                    telefono: "52" + document.getElementById('e_tel').value
+                };
+
+                // Si subió logo nuevo
+                if(file) {
+                    const fName = `logos/${Date.now()}_${file.name}`;
+                    const { error: upErr } = await supabase.storage.from('imagenes').upload(fName, file);
+                    if(upErr) throw upErr;
+                    
+                    const { data } = supabase.storage.from('imagenes').getPublicUrl(fName);
+                    updateData.logo_url = data.publicUrl;
+                }
+
+                const { error } = await supabase.from('empresas').update(updateData).eq('id', empresa_id);
+                if(error) throw error;
+
+                Swal.fire('Actualizado', 'Datos de empresa guardados', 'success');
+                cargarEmpresa(); // Recargar visualmente
+                bootstrap.Modal.getInstance(document.getElementById('modalEmpresa')).hide();
+
+            } catch (err) {
+                Swal.fire('Error', err.message, 'error');
+            } finally {
+                btn.disabled = false; btn.innerText = "Guardar Cambios";
+            }
+        };
+
+        // --- 2. PRODUCTOS ---
+        window.openModalProd = (p = null) => {
+            document.getElementById('formProd').reset();
+            document.getElementById('edit_p_id').value = p ? p.id : '';
+            if(p){
+                document.getElementById('p_nom').value = p.nombre;
+                document.getElementById('p_cat').value = p.categoria;
+                document.getElementById('p_dest').value = p.destino;
+                document.getElementById('p_costo').value = p.costo;
+                document.getElementById('p_venta').value = p.precio_venta;
+                document.getElementById('p_stock').value = p.stock;
+            }
+            new bootstrap.Modal(document.getElementById('modalProd')).show();
+        };
+
+        document.getElementById('formProd').onsubmit = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('edit_p_id').value;
+            const file = document.getElementById('p_img').files[0];
+            let imgUrl = null;
+
+            if(file){
+                const fName = `${empresa_id}/p_${Date.now()}`;
+                await supabase.storage.from('imagenes').upload(fName, file);
+                const { data } = supabase.storage.from('imagenes').getPublicUrl(fName);
+                imgUrl = data.publicUrl;
+            }
+
+            const payload = { 
+                empresa_id, 
+                nombre: document.getElementById('p_nom').value, 
+                categoria: document.getElementById('p_cat').value,
+                destino: document.getElementById('p_dest').value,
+                costo: document.getElementById('p_costo').value || 0,
+                precio_venta: document.getElementById('p_venta').value,
+                stock: document.getElementById('p_stock').value || 0
+            };
+            if(imgUrl) payload.imagen_url = imgUrl;
+
+            if(id) await supabase.from('productos').update(payload).eq('id', id);
+            else await supabase.from('productos').insert([payload]);
+
+            Swal.fire('Guardado', 'Menú actualizado', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('modalProd')).hide();
+            cargarProductos();
+        };
+
+        async function cargarProductos() {
+            const { data } = await supabase.from('productos').select('*').eq('empresa_id', empresa_id).order('nombre');
+            const list = document.getElementById('listaProductos');
+            list.innerHTML = '';
+
+            data?.forEach(p => {
+                list.innerHTML += `<tr>
+                    <td><img src="${p.imagen_url || 'https://via.placeholder.com/50'}" class="img-thumb"></td>
+                    <td><div class="fw-bold">${p.nombre}</div><small class="text-muted">${p.categoria || '-'}</small></td>
+                    <td>$${p.costo}</td>
+                    <td class="fw-bold text-primary">$${p.precio_venta}</td>
+                    <td>${p.stock}</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick='openModalProd(${JSON.stringify(p)})'><i class="bi bi-pencil"></i></button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="borrar('productos','${p.id}')"><i class="bi bi-trash"></i></button>
+                    </td>
+                </tr>`;
+            });
+        }
+
+        // --- 3. ZONAS Y MESAS ---
+        window.openModalZona = (z = null) => {
+            document.getElementById('formZona').reset();
+            document.getElementById('edit_z_id').value = z ? z.id : '';
+            document.getElementById('z_nom').value = z ? z.nombre : '';
+            new bootstrap.Modal(document.getElementById('modalZona')).show();
+        };
+
+        document.getElementById('formZona').onsubmit = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('edit_z_id').value;
+            const file = document.getElementById('z_img').files[0];
+            let imgUrl = null;
+
+            if(file){
+                const fName = `${empresa_id}/z_${Date.now()}`;
+                await supabase.storage.from('imagenes').upload(fName, file);
+                const { data } = supabase.storage.from('imagenes').getPublicUrl(fName);
+                imgUrl = data.publicUrl;
+            }
+
+            const payload = { empresa_id, nombre: document.getElementById('z_nom').value };
+            if(imgUrl) payload.imagen_url = imgUrl;
+
+            if(id) await supabase.from('zonas').update(payload).eq('id', id);
+            else await supabase.from('zonas').insert([payload]);
+
+            bootstrap.Modal.getInstance(document.getElementById('modalZona')).hide();
+            cargarZonasYMesas();
+        };
+
+        async function cargarZonasYMesas() {
+            const { data: zonas } = await supabase.from('zonas').select('*').eq('empresa_id', empresa_id);
+            const { data: mesas } = await supabase.from('mesas').select('*').eq('empresa_id', empresa_id);
+            const draw = document.getElementById('drawZonas');
+            draw.innerHTML = '';
+
+            zonas?.forEach(z => {
+                const mDeZ = mesas?.filter(m => m.zona_id === z.id) || [];
+                let mHtml = '';
+                mDeZ.forEach(m => {
+                    mHtml += `
+                    <div class="col-4 col-md-3 col-lg-2 mb-2 p-1 text-center">
+                        <div class="mesa-card p-2 py-3 position-relative">
+                            <i class="bi bi-aspect-ratio fs-4 text-secondary"></i>
+                            <div class="fw-bold mt-1 small text-dark">${m.nombre_mesa}</div>
+                            <button class="btn btn-sm text-danger btn-del-mesa" onclick="borrar('mesas','${m.id}')">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
+                    </div>`;
+                });
+
+                draw.innerHTML += `
+                <div class="col-12 col-xl-6 mb-4">
+                    <div class="card card-custom h-100">
+                        <div class="zona-header">
+                             <img src="${z.imagen_url || 'https://via.placeholder.com/600x200?text=Zona'}" class="zona-img">
+                             <div class="position-absolute top-0 end-0 p-2">
+                                <button class="btn btn-light btn-sm shadow-sm" onclick='openModalZona(${JSON.stringify(z)})'><i class="bi bi-pencil"></i></button>
+                             </div>
+                        </div>
+                        <div class="p-3">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="fw-bold m-0 text-primary">${z.nombre}</h5>
+                                <button class="btn btn-sm btn-outline-primary" onclick="addMesaPrompt('${z.id}')">+ Mesa</button>
+                            </div>
+                            <div class="row g-1">
+                                ${mHtml || '<div class="text-center text-muted py-3 small">Sin mesas asignadas</div>'}
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            });
+        }
+
+        window.addMesaPrompt = async (zid) => {
+            const { value: n } = await Swal.fire({ title: 'Nombre de la Mesa', input: 'text', showCancelButton: true });
+            if(n) { await supabase.from('mesas').insert([{ empresa_id, zona_id: zid, nombre_mesa: n }]); cargarZonasYMesas(); }
+        };
+
+        // --- 4. USUARIOS (EQUIPO) - CON MANEJO DE DUPLICADOS ---
+        window.openModalUser = (u = null) => {
+            document.getElementById('formUser').reset();
+            document.getElementById('edit_u_id').value = u ? u.id : '';
+            if(u) {
+                document.getElementById('u_nom').value = u.nombre_completo;
+                document.getElementById('u_rol').value = u.rol;
+                document.getElementById('u_tel').value = u.telefono || '';
+                document.getElementById('u_user').value = u.username;
+                document.getElementById('u_pass').value = u.password;
+            }
+            new bootstrap.Modal(document.getElementById('modalUser')).show();
+        };
+
+        document.getElementById('formUser').onsubmit = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('edit_u_id').value;
+            const payload = {
+                empresa_id,
+                nombre_completo: document.getElementById('u_nom').value,
+                rol: document.getElementById('u_rol').value,
+                telefono: document.getElementById('u_tel').value,
+                username: document.getElementById('u_user').value,
+                password: document.getElementById('u_pass').value
+            };
+
+            try {
+                if(id) await supabase.from('usuarios').update(payload).eq('id', id);
+                else {
+                    const { error } = await supabase.from('usuarios').insert([payload]);
+                    if(error) throw error;
+                }
+
+                Swal.fire('Guardado', 'Empleado registrado', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('modalUser')).hide();
+                cargarUsuarios();
+
+            } catch (err) {
+                // *** AQUÍ ESTÁ EL MANEJO DE DUPLICADOS ***
+                if (err.code === '23505' || err.message.includes('duplicate')) {
+                    Swal.fire({
+                        title: 'Nombre de Usuario Ocupado',
+                        text: 'Este usuario ya existe en el sistema (quizá en otra empresa). Intenta agregar un prefijo, ej: "caja_centro" o "mesero_juan".',
+                        icon: 'warning'
+                    });
+                } else {
+                    Swal.fire('Error', err.message, 'error');
+                }
+            }
+        };
+
+        async function cargarUsuarios() {
+            const { data } = await supabase.from('usuarios').select('*').eq('empresa_id', empresa_id).neq('rol', 'dueno');
+            const list = document.getElementById('listUsers');
+            list.innerHTML = '';
+
+            data?.forEach(u => {
+                list.innerHTML += `
+                <div class="col-md-6 col-lg-4">
+                    <div class="card p-3 shadow-sm border-0 h-100">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="fw-bold mb-1">${u.nombre_completo}</h6>
+                                <span class="badge bg-secondary mb-2">${u.rol.toUpperCase()}</span>
+                            </div>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-light" type="button" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="#" onclick='openModalUser(${JSON.stringify(u)})'>Editar</a></li>
+                                    <li><a class="dropdown-item text-danger" href="#" onclick="borrar('usuarios','${u.id}')">Eliminar</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="mt-3 small text-muted border-top pt-2">
+                            <div class="d-flex justify-content-between"><span>Usuario:</span> <span class="text-dark fw-bold">${u.username}</span></div>
+                            <div class="d-flex justify-content-between"><span>Pass:</span> <span class="text-dark fw-bold">${u.password}</span></div>
+                            <div class="d-flex justify-content-between"><span>Tel:</span> <span>${u.telefono || '-'}</span></div>
+                        </div>
+                    </div>
+                </div>`;
+            });
+        }
+
+        // --- GLOBAL: BORRAR ---
+        window.borrar = async (tabla, id) => {
+            const res = await Swal.fire({ title: '¿Estás seguro?', text: "Se eliminará permanentemente.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33' });
+            if(res.isConfirmed) {
+                await supabase.from(tabla).delete().eq('id', id);
+                cargarTodo();
+            }
+        };
+
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
