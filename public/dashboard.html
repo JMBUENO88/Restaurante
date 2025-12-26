@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard | Super Admin</title>
+    <style>
+        :root { --primary: #2563eb; --sidebar: #0f172a; --bg: #f1f5f9; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; background-color: var(--bg); }
+        
+        /* Sidebar */
+        .sidebar { width: 260px; background-color: var(--sidebar); color: white; padding: 20px; display: flex; flex-direction: column; }
+        .sidebar h2 { margin-top: 0; font-size: 20px; margin-bottom: 40px; text-align: center; border-bottom: 1px solid #334155; padding-bottom: 20px;}
+        .menu-item { padding: 15px; margin-bottom: 10px; cursor: pointer; border-radius: 8px; transition: 0.2s; display: flex; gap: 10px; }
+        .menu-item:hover, .menu-item.active { background-color: #334155; }
+        .logout { margin-top: auto; color: #f87171; }
+
+        /* Contenido */
+        .content { flex: 1; padding: 40px; overflow-y: auto; }
+        .panel { display: none; }
+        .panel.active { display: block; }
+        
+        /* Estilos de Formulario (Heredados del anterior pero mejorados) */
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); max-width: 800px; }
+        .header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        h1 { color: #1e293b; margin: 0; }
+        
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px; color: #64748b; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 15px; box-sizing: border-box; }
+        button.btn-primary { background-color: var(--primary); color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        
+        /* Tabla de Edición */
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { text-align: left; color: #64748b; padding: 10px; border-bottom: 2px solid #e2e8f0; }
+        td { padding: 15px 10px; border-bottom: 1px solid #e2e8f0; }
+        .badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+        .badge-trial { background: #dbeafe; color: #1e40af; }
+        .btn-edit { background: none; border: 1px solid #cbd5e1; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2>🚀 Master Admin</h2>
+        <div class="menu-item active" onclick="mostrarPanel('crear')">➕ Nueva Empresa</div>
+        <div class="menu-item" onclick="mostrarPanel('listar')">📝 Editar / Listar</div>
+        <div class="menu-item logout" onclick="logout()">Cerrar Sesión</div>
+    </div>
+
+    <div class="content">
+        
+        <div id="panel-crear" class="panel active">
+            <div class="card">
+                <div class="header-flex">
+                    <h1>Alta de Empresa</h1>
+                </div>
+                <form id="formCrear">
+                    <h3>🏠 Datos del Local</h3>
+                    <div class="grid-2">
+                        <div><label>Nombre del Negocio</label><input type="text" id="nombre_negocio" required></div>
+                        <div><label>Teléfono Local</label><input type="text" id="telefono_local"></div>
+                    </div>
+                    <div><label>Dirección del Negocio</label><input type="text" id="direccion_negocio" required></div>
+
+                    <h3>👤 Datos del Dueño & Acceso</h3>
+                    <div class="grid-2">
+                        <div><label>Nombre del Dueño</label><input type="text" id="nombre_dueno" required></div>
+                        <div><label>WhatsApp (Dueño)</label><input type="text" id="telefono_dueno" required></div>
+                    </div>
+                    <div><label>Dirección Particular</label><input type="text" id="direccion_dueno"></div>
+                    
+                    <div class="grid-2" style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px dashed #cbd5e1;">
+                        <div><label>Email de Acceso (Login)</label><input type="email" id="email_acceso" placeholder="usuario@empresa.com" required></div>
+                        <div><label>Contraseña Temporal</label><input type="text" id="password_acceso" placeholder="Ej. clave123" required></div>
+                    </div>
+
+                    <h3>📅 Suscripción</h3>
+                    <select id="tipo_suscripcion">
+                        <option value="1 día">Prueba 1 día</option>
+                        <option value="30 días">Mensual</option>
+                    </select>
+
+                    <button type="submit" class="btn-primary">Guardar Empresa</button>
+                </form>
+            </div>
+        </div>
+
+        <div id="panel-listar" class="panel">
+            <div class="card">
+                <h1>Empresas Registradas</h1>
+                <table id="tablaEmpresas">
+                    <thead><tr><th>Negocio</th><th>Dueño</th><th>Suscripción</th><th>Acciones</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // 1. Verificar Sesión (Si no hay login, sacar al usuario)
+        if(!localStorage.getItem('sb-token')) window.location.href = '/';
+
+        function logout() {
+            localStorage.removeItem('sb-token');
+            window.location.href = '/';
+        }
+
+        function mostrarPanel(panel) {
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+            
+            if(panel === 'crear') {
+                document.getElementById('panel-crear').classList.add('active');
+                document.querySelectorAll('.menu-item')[0].classList.add('active');
+            } else {
+                document.getElementById('panel-listar').classList.add('active');
+                document.querySelectorAll('.menu-item')[1].classList.add('active');
+                cargarEmpresas(); // Refrescar lista
+            }
+        }
+
+        // LOGICA CREAR
+        document.getElementById('formCrear').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                nombre_negocio: document.getElementById('nombre_negocio').value,
+                direccion_negocio: document.getElementById('direccion_negocio').value,
+                telefono_local: document.getElementById('telefono_local').value,
+                nombre_dueno: document.getElementById('nombre_dueno').value,
+                telefono_dueno: document.getElementById('telefono_dueno').value,
+                direccion_dueno: document.getElementById('direccion_dueno').value,
+                email_acceso: document.getElementById('email_acceso').value,
+                password_acceso: document.getElementById('password_acceso').value,
+                tipo_suscripcion: document.getElementById('tipo_suscripcion').value
+            };
+
+            const res = await fetch('/api/empresas', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if(res.ok) {
+                alert('Empresa creada con éxito ✅');
+                document.getElementById('formCrear').reset();
+            } else {
+                alert('Error al crear');
+            }
+        });
+
+        // LOGICA LISTAR
+        async function cargarEmpresas() {
+            const res = await fetch('/api/empresas');
+            const data = await res.json();
+            const tbody = document.querySelector('#tablaEmpresas tbody');
+            tbody.innerHTML = '';
+            
+            data.forEach(emp => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td><b>${emp.nombre_negocio}</b><br><small>${emp.email_acceso}</small></td>
+                        <td>${emp.nombre_dueno}</td>
+                        <td><span class="badge badge-trial">${emp.tipo_suscripcion}</span></td>
+                        <td><button class="btn-edit" onclick="alert('Función de editar pendiente de conectar ID: ${emp.id}')">✏️ Editar</button></td>
+                    </tr>
+                `;
+            });
+        }
+    </script>
+</body>
+</html>
