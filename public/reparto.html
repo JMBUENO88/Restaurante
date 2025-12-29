@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mis Entregas</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f8f9fa; font-family: 'Segoe UI', sans-serif; }
+        .navbar { background: #2c3e50; color: white; }
+        .card-entrega { border-left: 5px solid #27ae60; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar sticky-top px-3 py-2">
+        <div class="d-flex align-items-center w-100 justify-content-between">
+            <div class="d-flex align-items-center">
+                <button class="btn btn-sm btn-outline-light me-3 border-0" onclick="location.href='index.html'"><i class="bi bi-arrow-left"></i></button>
+                <div class="d-flex flex-column lh-1">
+                    <span class="text-success fw-bold small">REPARTO</span>
+                    <span class="fw-bold text-white fs-5" id="headerTitle">Cargando...</span>
+                    <img src="" id="headerLogo" style="height:30px; width:auto; background:white; padding:2px; border-radius:4px; margin-top:3px; display:none;">
+                </div>
+            </div>
+            <div class="text-end text-white">
+                <small class="text-white-50 d-block" style="font-size:0.7rem">Repartidor</small>
+                <span class="fw-bold" id="userName">...</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h5 class="mb-3 fw-bold">Tus Entregas Pendientes</h5>
+        <div id="listaEntregas"></div>
+        <div id="loading" class="text-center mt-5"><div class="spinner-border text-success"></div></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
+        import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
+        const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        window.onload = async () => {
+            const uid = localStorage.getItem('user_id');
+            if(!uid) window.location.href = 'index.html';
+
+            // 1. USUARIO Y EMPRESA
+            const { data: usuario } = await supabase.from('usuarios').select('nombre_completo, empresa_id').eq('id', uid).single();
+            if(usuario) {
+                document.getElementById('userName').innerText = usuario.nombre_completo;
+                const { data: emp } = await supabase.from('empresas').select('nombre_negocio, logo_url').eq('id', usuario.empresa_id).single();
+                if(emp) {
+                    document.getElementById('headerTitle').innerText = emp.nombre_negocio;
+                    if(emp.logo_url) { const img = document.getElementById('headerLogo'); img.src=emp.logo_url; img.style.display='block'; }
+                }
+                cargarEntregas(uid);
+            }
+        };
+
+        async function cargarEntregas(uid) {
+            // Buscar ordenes asignadas a ESTE usuario que estén 'enviada'
+            const { data } = await supabase.from('ordenes')
+                .select('*')
+                .eq('repartidor_id', uid)
+                .eq('estado', 'enviada')
+                .order('created_at', {ascending: false});
+            
+            document.getElementById('loading').style.display = 'none';
+            const list = document.getElementById('listaEntregas');
+            list.innerHTML = '';
+
+            if(!data || data.length === 0) {
+                list.innerHTML = '<div class="alert alert-secondary text-center">No tienes entregas asignadas.</div>';
+                return;
+            }
+
+            data.forEach(o => {
+                const cli = o.cliente_datos || {};
+                list.innerHTML += `
+                <div class="card shadow-sm card-entrega">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <h5 class="fw-bold">${cli.nom || 'Cliente'}</h5>
+                            <span class="badge bg-success fs-6">$${o.total}</span>
+                        </div>
+                        <p class="mb-2 text-muted"><i class="bi bi-geo-alt"></i> ${cli.dir || 'Sin dirección'}</p>
+                        <div class="d-grid gap-2 d-flex mt-3">
+                            <a href="tel:${cli.tel}" class="btn btn-outline-dark flex-fill"><i class="bi bi-telephone"></i> Llamar</a>
+                            <a href="https://www.google.com/maps/search/?api=1&query=${cli.lat},${cli.lng}" target="_blank" class="btn btn-outline-primary flex-fill"><i class="bi bi-map"></i> Mapa</a>
+                        </div>
+                        <button class="btn btn-success w-100 mt-2 fw-bold" onclick="finalizarEntrega('${o.id}')">MARCAR ENTREGADO</button>
+                    </div>
+                </div>`;
+            });
+        }
+
+        window.finalizarEntrega = async (id) => {
+            if(confirm('¿Confirmas que ya entregaste y cobraste este pedido?')) {
+                await supabase.from('ordenes').update({estado: 'entregada'}).eq('id', id);
+                location.reload();
+            }
+        };
+    </script>
+</body>
+</html>

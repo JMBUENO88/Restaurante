@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Operaciones</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        :root { --primary: #2c3e50; --accent: #e67e22; --success: #27ae60; }
+        body { background: #f0f2f5; font-family: 'Segoe UI', sans-serif; padding-bottom: 80px; }
+        
+        /* Navbar */
+        .navbar { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding-top: 5px; padding-bottom: 5px; }
+        .btn-mode { height: 110px; border-radius: 15px; font-weight: bold; font-size: 1.1rem; transition: 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: none; }
+        .btn-mode:active { transform: scale(0.95); }
+        
+        /* Cards & Grid */
+        .prod-card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.05); cursor: pointer; position: relative; height: 100%; border: 1px solid #eee; }
+        .prod-img { width: 100%; height: 100px; object-fit: cover; }
+        .stock-badge { position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.6); color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.65rem; backdrop-filter: blur(2px); }
+        
+        /* Mesa Card */
+        .mesa-card { transition: 0.2s; border-radius: 12px; cursor: pointer; position: relative; min-height: 90px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px solid transparent; }
+        .mesa-card:active { transform: scale(0.95); }
+        .mesa-libre { background: white; border-color: #eee; color: var(--primary); }
+        .mesa-ocupada { background: #ffebee; border-color: #ef9a9a; color: #c62828; }
+        .mesa-badge { position: absolute; top: 5px; right: 5px; font-size: 0.7rem; font-weight: bold; }
+
+        /* NOTIFICACIONES (Campana Pequeña en Mesas) */
+        .bell-notif {
+            position: absolute; top: -10px; right: -10px; background: #ffc107; color: #000;
+            width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 0 15px rgba(255, 193, 7, 0.8); z-index: 10; animation: ring-bell 2s infinite; border: 2px solid white;
+        }
+
+        /* --- NUEVO: CAMPANA GRANDE DENTRO DE LA ORDEN --- */
+        .big-bell-alert {
+            display: none; /* Oculto por defecto */
+            color: #ffc107; 
+            font-size: 1.5rem; 
+            margin-left: 10px;
+            filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));
+            animation: ring-bell 1s infinite;
+        }
+
+        @keyframes ring-bell {
+            0% { transform: rotate(0); }
+            10% { transform: rotate(20deg); }
+            20% { transform: rotate(-20deg); }
+            30% { transform: rotate(10deg); }
+            40% { transform: rotate(-10deg); }
+            50% { transform: rotate(0); }
+        }
+
+        /* Carrito Flotante */
+        #bottom-cart { position: fixed; bottom: 0; left: 0; width: 100%; background: white; border-top: 1px solid #e0e0e0; padding: 12px 20px; z-index: 1000; box-shadow: 0 -4px 20px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
+
+        /* Items del Carrito */
+        .item-old { color: #888; font-style: italic; background: #f9f9f9; border-left: 3px solid #ccc; }
+        .item-new { color: #000; font-weight: bold; background: #fff; border-left: 3px solid var(--success); }
+        .item-canceled { background: #fee2e2; border-left: 3px solid #ef4444; color: #991b1b; text-decoration: line-through; opacity: 0.7; }
+
+        /* Historial Ventas */
+        .clickable-card { cursor: pointer; transition: 0.2s; }
+        .clickable-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .ticket-history { border: 1px dashed #ccc; background: #fff; margin-bottom: 10px; border-radius: 8px; padding: 10px; }
+
+        /* --- ESTILOS DE IMPRESIÓN (TICKET) --- */
+        @media print {
+            body * { visibility: hidden; }
+            #ticket-print, #ticket-print * { visibility: visible; }
+            #ticket-print { 
+                position: absolute; 
+                left: 0; 
+                top: 0; 
+                width: 100%; 
+                margin: 0; 
+                padding: 0;
+                background-color: white; 
+                z-index: 9999;
+            }
+            .no-print { display: none !important; }
+        }
+        #ticket-print { display: none; } /* Oculto en pantalla normal */
+    </style>
+</head>
+<body>
+
+    <nav class="navbar sticky-top px-3 py-2 no-print">
+        <div class="d-flex align-items-center w-100 justify-content-between">
+            
+            <div class="d-flex align-items-start">
+                <button class="btn btn-sm btn-outline-light me-3 align-self-center border-0" onclick="goHome()"><i class="bi bi-arrow-left fs-4"></i></button>
+                <div class="d-flex flex-column align-items-start lh-1">
+                    <span class="text-warning fw-bold" style="font-size: 0.75rem; letter-spacing: 1px;">OPERACIONES</span>
+                    <span class="fw-bold text-white" style="font-size: 1.1rem;" id="headerTitle">Cargando...</span>
+                    <img src="" id="headerLogo" style="height: 35px; width: auto; background: white; padding: 2px; border-radius: 4px; margin-top: 4px; display: none;" alt="Logo">
+                </div>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                <div class="text-end me-1" style="line-height: 1.2;">
+                    <small class="text-white-50 d-block" style="font-size: 0.7rem;">Usuario</small>
+                    <span class="fw-bold text-white" style="font-size: 0.95rem;" id="userName">...</span>
+                </div>
+                <button class="btn btn-sm btn-danger shadow-sm border-0" onclick="logout()" title="Cerrar Sesión">
+                    <i class="bi bi-power"></i>
+                </button>
+            </div>
+
+        </div>
+    </nav>
+
+    <div id="ticket-print">
+        <div style="width: 80mm; margin: 0 auto; font-family: 'Courier New', monospace; font-size: 12px; color: black;">
+            <div style="text-align: center;">
+                <h3 style="margin: 0; font-weight: bold;" id="tkt-negocio">NOMBRE NEGOCIO</h3>
+                <p style="margin: 0;" id="tkt-dir">Dirección</p>
+                <p style="margin: 0;" id="tkt-tel">Teléfono</p>
+                <hr style="border-top: 1px dashed #000; margin: 5px 0;">
+            </div>
+            
+            <div id="tkt-items" style="text-align: left;">
+            </div>
+            
+            <hr style="border-top: 1px dashed #000; margin: 5px 0;">
+            <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px;">
+                <span>TOTAL:</span>
+                <span id="tkt-total">$0.00</span>
+            </div>
+            <p style="text-align: center; margin-top: 10px;">¡Gracias por su preferencia!<br>Vuelva pronto.</p>
+        </div>
+    </div>
+
+    <div class="container mt-4 mb-5 no-print">
+        
+        <div id="view-home" class="view-section">
+            <h5 class="mb-4 fw-bold text-secondary">Hola <span id="welcomeName"></span>, ¿qué haremos hoy?</h5>
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-md-4">
+                    <button class="btn btn-light w-100 btn-mode text-primary" onclick="setMode('restaurante')">
+                        <i class="bi bi-shop fs-1 d-block mb-2"></i> Mesa
+                    </button>
+                </div>
+                <div class="col-6 col-md-4">
+                    <button class="btn btn-light w-100 btn-mode text-warning" onclick="setMode('rapido')">
+                        <i class="bi bi-lightning-fill fs-1 d-block mb-2"></i> Barra/Rápido
+                    </button>
+                </div>
+                <div class="col-12 col-md-4">
+                    <button class="btn btn-light w-100 btn-mode text-success" onclick="setMode('domicilio')">
+                        <i class="bi bi-bicycle fs-1 d-block mb-2"></i> Domicilio
+                    </button>
+                </div>
+            </div>
+            
+            <div id="salesPanel" class="p-3 bg-white rounded shadow-sm border">
+                <div class="text-center py-3">
+                    <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                    <small class="ms-2">Cargando ventas...</small>
+                </div>
+            </div>
+            <small class="text-muted text-center d-block mt-2">* Toca las cajas de ventas para ver el detalle.</small>
+        </div>
+
+        <div id="view-mesas" class="view-section" style="display:none;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold m-0">Elige una Mesa</h5>
+                <button class="btn btn-sm btn-outline-secondary" onclick="cargarZonas()"><i class="bi bi-arrow-clockwise"></i></button>
+            </div>
+            <div id="zonasContainer" class="pb-5"></div>
+        </div>
+
+        <div id="view-delivery" class="view-section" style="display:none;">
+            <div class="card p-3 shadow-sm border-0">
+                <h5 class="fw-bold mb-3"><i class="bi bi-geo-alt-fill text-danger"></i> Datos de Entrega</h5>
+                <input type="text" id="cli_nom" class="form-control mb-2" placeholder="Nombre del Cliente">
+                <input type="tel" id="cli_tel" class="form-control mb-2" placeholder="WhatsApp (10 dígitos)">
+                <input type="text" id="cli_dir" class="form-control mb-2" placeholder="Dirección escrita (Calle, #, Col)">
+                
+                <label class="small text-muted mb-1">Ubicación Exacta</label>
+                <div id="map" style="height:200px; border-radius:10px;" class="mb-2"></div>
+                <input type="hidden" id="cli_lat"><input type="hidden" id="cli_lng">
+
+                <label class="small fw-bold mt-2">Repartidor</label>
+                <select id="selRepartidor" class="form-select mb-3"></select>
+                
+                <button class="btn btn-primary w-100" onclick="startDeliveryOrder()">Ir al Menú <i class="bi bi-arrow-right"></i></button>
+            </div>
+        </div>
+
+        <div id="view-pos" class="view-section" style="display:none;">
+            <div class="d-flex overflow-auto mb-3 pb-2 sticky-top bg-light pt-2" style="top:55px; z-index:900;" id="catFilters"></div>
+
+            <div class="row g-2" id="prodGrid"></div>
+        </div>
+
+        <div id="view-repartidor" class="view-section" style="display:none;">
+            <h5 class="fw-bold mb-3">Tus Entregas Pendientes</h5>
+            <div id="listEntregas"></div>
+        </div>
+
+    </div>
+
+    <div id="bottom-cart" style="display:none;" class="no-print">
+        <div class="d-flex align-items-center" onclick="openCartModal()">
+            <div class="position-relative me-3">
+                <i class="bi bi-basket2-fill fs-3 text-primary"></i>
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="cartCount">0</span>
+            </div>
+            <div class="lh-1">
+                <small class="text-muted d-block">Total Est.</small>
+                <span class="fw-bold fs-5" id="cartTotal">$0.00</span>
+            </div>
+            <i class="bi bi-bell-fill big-bell-alert" id="bellAlertBottom"></i>
+        </div>
+        <button class="btn btn-primary fw-bold px-4 rounded-pill shadow-sm" onclick="openCartModal()">
+            Ver Orden <i class="bi bi-chevron-up"></i>
+        </button>
+    </div>
+
+    <div class="modal fade" id="modalCart" tabindex="-1">
+        <div class="modal-dialog modal-fullscreen-sm-down modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title fw-bold">
+                        Comanda <span id="lblMesaCart"></span>
+                        <i class="bi bi-bell-fill big-bell-alert" id="bellAlertModal"></i>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div id="cartSent" class="p-0"></div>
+                    <div id="cartNew" class="p-0"></div>
+                    <div id="emptyCartMsg" class="text-center py-5 text-muted" style="display:none;">
+                        <i class="bi bi-cart-x fs-1 opacity-50"></i>
+                        <p class="mt-2">Nada nuevo por aquí</p>
+                    </div>
+                </div>
+                <div class="modal-footer d-block bg-white border-top shadow-lg">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <button class="btn btn-dark w-100 py-2 fw-bold" onclick="enviarComanda()" id="btnSend">
+                                <i class="bi bi-fire text-warning me-1"></i> COCINA
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-success w-100 py-2 fw-bold" onclick="prepararCobro()" id="btnPay">
+                                <i class="bi bi-cash-coin me-1"></i> COBRAR
+                            </button>
+                        </div>
+                        <div class="col-12 mt-2">
+                            <button class="btn btn-outline-danger w-100 btn-sm" onclick="cancelarOrdenCompleta()">
+                                <i class="bi bi-x-circle"></i> ANULAR MESA / CANCELAR TODO
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalHistory" tabindex="-1">
+        <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-clock-history me-2"></i>Historial de Hoy</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-light" id="historyBody">
+                    <div class="text-center py-3"><div class="spinner-border"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
+        import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
+        const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // --- ESTADO GLOBAL ---
+        let state = {
+            user: null, empresa_id: null, empresa_nombre: 'Cargando...',
+            mode: null,
+            mesaId: null, mesaNombre: null,
+            cart: [], sentItems: [],
+            productos: [], deliveryInfo: {},
+            ordenIdActual: null,
+            map: null, marker: null,
+            historyData: [] // Para guardar órdenes del historial
+        };
+
+        // --- INICIO ---
+        window.onload = async () => {
+            const uid = localStorage.getItem('user_id');
+            const cachedName = localStorage.getItem('cache_empresa_nombre');
+            
+            // 1. Mostrar nombre de empresa desde caché si existe
+            if(cachedName) document.getElementById('headerTitle').innerText = cachedName;
+            if(!uid) window.location.href = 'index.html';
+
+            // 2. OBTENER DATOS REALES DE USUARIO (CORRECCIÓN)
+            const { data: usuario, error: errUser } = await supabase.from('usuarios')
+                .select('nombre_completo, empresa_id, rol')
+                .eq('id', uid)
+                .single();
+
+            if (errUser || !usuario) { console.error(errUser); window.location.href = 'index.html'; return; }
+            
+            // Guardar en state
+            state.user = { id: uid, nombre: usuario.nombre_completo, rol: usuario.rol };
+            state.empresa_id = usuario.empresa_id;
+
+            // ACTUALIZAR UI USUARIO
+            document.getElementById('userName').innerText = usuario.nombre_completo;
+            if(document.getElementById('welcomeName')) {
+                document.getElementById('welcomeName').innerText = usuario.nombre_completo.split(' ')[0];
+            }
+            
+            // 3. Ejecutar fetch a BD para empresa (CORRECCIÓN COLUMNAS)
+            await fetchNombreEmpresa();
+
+            // REALTIME LISTENER (NOTIFICACIONES)
+            supabase.channel('notif-mesero')
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'detalles_orden' }, payload => {
+                if(payload.new.estado === 'listo') {
+                    // 1. Actualizar Zonas (campanita pequeña)
+                    if(state.mode === 'restaurante') cargarZonas();
+                    
+                    // 2. Si estamos dentro de la orden, mostrar CAMPANA GRANDE
+                    if(state.ordenIdActual === payload.new.orden_id) {
+                        fetchOrdenActiva(state.ordenIdActual);
+                        mostrarCampanaGrande(true);
+                    }
+                    
+                    if("vibrate" in navigator) navigator.vibrate([200, 100, 200, 100, 500]);
+                    const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
+                    Toast.fire({ icon: 'success', title: `¡${payload.new.nombre_producto} listo!` });
+                }
+            }).subscribe();
+
+            if (state.user.rol === 'repartidor') {
+                showView('view-repartidor');
+                document.getElementById('headerTitle').innerText = "Repartidor";
+                cargarEntregasRepartidor();
+            } else {
+                await cargarProductos();
+                loadVentasDia(); 
+                showView('view-home');
+            }
+        };
+
+        window.logout = () => { localStorage.clear(); window.location.href = 'index.html'; };
+        window.goHome = () => { if(state.cart.length>0 && !confirm('¿Salir? Perderás lo no enviado.')) return; location.reload(); };
+        function showView(id){ document.querySelectorAll('.view-section').forEach(v=>v.style.display='none'); document.getElementById(id).style.display='block'; }
+
+        // --- FUNCIÓN CAMPANA GRANDE ---
+        function mostrarCampanaGrande(activar) {
+            const display = activar ? 'inline-block' : 'none';
+            document.getElementById('bellAlertBottom').style.display = display;
+            document.getElementById('bellAlertModal').style.display = display;
+        }
+
+        // --- BUSCAR DATOS DE EMPRESA (CORRECCIÓN: nombre_negocio, logo_url) ---
+        async function fetchNombreEmpresa() {
+            // USAMOS LAS COLUMNAS CORRECTAS DE TU BD
+            const { data } = await supabase.from('empresas')
+                .select('nombre_negocio, domicilio_negocio, telefono_comercial, logo_url')
+                .eq('id', state.empresa_id)
+                .single();
+
+            if(data) {
+                state.empresa_nombre = data.nombre_negocio;
+                // Guardar en caché para la próxima vez
+                localStorage.setItem('cache_empresa_nombre', data.nombre_negocio);
+
+                // ACTUALIZAR TITULO Y LOGO
+                document.getElementById('headerTitle').innerText = data.nombre_negocio; 
+                
+                if(data.logo_url) {
+                    const img = document.getElementById('headerLogo');
+                    img.src = data.logo_url;
+                    img.style.display = 'block'; // Hacer visible
+                }
+
+                // Actualizar Ticket
+                document.getElementById('tkt-negocio').innerText = data.nombre_negocio;
+                if(data.domicilio_negocio) document.getElementById('tkt-dir').innerText = data.domicilio_negocio;
+                if(data.telefono_comercial) document.getElementById('tkt-tel').innerText = "Tel: " + data.telefono_comercial;
+            }
+        }
+
+        // --- LÓGICA DE VENTAS Y HISTORIAL ---
+        async function loadVentasDia() {
+            const hoy = new Date().toISOString().split('T')[0];
+            const { data } = await supabase.from('ordenes')
+                .select('total, tipo')
+                .eq('empresa_id', state.empresa_id)
+                .gte('created_at', hoy)
+                .or('estado.eq.pagada,estado.eq.entregada,estado.eq.enviada');
+
+            let vRest = 0, vDom = 0, vRap = 0;
+            if (data) {
+                data.forEach(o => {
+                    const t = parseFloat(o.total || 0);
+                    if (o.tipo === 'restaurante') vRest += t;
+                    else if (o.tipo === 'domicilio') vDom += t;
+                    else vRap += t; 
+                });
+            }
+            const total = vRest + vDom + vRap;
+            document.getElementById('salesPanel').innerHTML = `<div class="d-flex justify-content-between align-items-center mb-3"><h5 class="fw-bold m-0 text-secondary">Ventas de Hoy</h5><span class="badge bg-success fs-5 shadow-sm">$${total.toFixed(2)}</span></div><div class="row g-2 text-center"><div class="col-4"><div class="p-2 bg-light border rounded h-100 clickable-card" onclick="verDetalleVentas('restaurante')"><small class="d-block text-muted" style="font-size:0.75rem">Mesa</small><span class="fw-bold text-primary">$${vRest.toFixed(2)}</span><div class="small text-muted"><i class="bi bi-eye"></i></div></div></div><div class="col-4"><div class="p-2 bg-light border rounded h-100 clickable-card" onclick="verDetalleVentas('rapido')"><small class="d-block text-muted" style="font-size:0.75rem">Rápido</small><span class="fw-bold text-warning">$${vRap.toFixed(2)}</span><div class="small text-muted"><i class="bi bi-eye"></i></div></div></div><div class="col-4"><div class="p-2 bg-light border rounded h-100 clickable-card" onclick="verDetalleVentas('domicilio')"><small class="d-block text-muted" style="font-size:0.75rem">Domicilio</small><span class="fw-bold text-success">$${vDom.toFixed(2)}</span><div class="small text-muted"><i class="bi bi-eye"></i></div></div></div></div>`;
+        }
+
+        // --- HISTORIAL CON BOTONES (WhatsApp y Ticket) ---
+        window.verDetalleVentas = async (tipo) => {
+            const modal = new bootstrap.Modal(document.getElementById('modalHistory'));
+            const body = document.getElementById('historyBody');
+            body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Consultando archivo...</p></div>';
+            modal.show();
+
+            const hoy = new Date().toISOString().split('T')[0];
+            const { data: ordenes } = await supabase
+                .from('ordenes')
+                .select(`id, total, created_at, tipo, mesas(nombre_mesa), cliente_datos, detalles_orden(nombre_producto, cantidad, precio_unitario)`)
+                .eq('empresa_id', state.empresa_id).eq('tipo', tipo).gte('created_at', hoy)
+                .or('estado.eq.pagada,estado.eq.entregada,estado.eq.enviada').order('created_at', {ascending: false});
+
+            if(!ordenes || ordenes.length === 0) {
+                body.innerHTML = '<div class="alert alert-secondary text-center">No hay ventas registradas.</div>';
+                return;
+            }
+
+            state.historyData = ordenes; // Guardar referencia para botones
+
+            let html = '';
+            ordenes.forEach((o, idx) => {
+                const hora = new Date(o.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                let titulo = o.tipo === 'restaurante' ? (o.mesas ? o.mesas.nombre_mesa : 'Mesa') : (o.cliente_datos?.nom || 'Cliente');
+                let prodsHtml = '<ul class="list-unstyled mb-0 small text-muted border-top mt-2 pt-2">';
+                o.detalles_orden.forEach(d => { prodsHtml += `<li class="d-flex justify-content-between"><span>${d.cantidad}x ${d.nombre_producto}</span><span>$${(d.cantidad * d.precio_unitario).toFixed(2)}</span></li>`; });
+                prodsHtml += '</ul>';
+
+                html += `
+                <div class="ticket-history shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="fw-bold">${titulo}</span>
+                        <span class="badge bg-dark text-white">$${o.total.toFixed(2)}</span>
+                    </div>
+                    <small class="text-muted d-block mb-1"><i class="bi bi-clock"></i> ${hora}</small>
+                    ${prodsHtml}
+                    <div class="mt-2 d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-primary flex-fill" onclick="retryWA(${idx})"><i class="bi bi-whatsapp"></i> WA</button>
+                        <button class="btn btn-sm btn-outline-dark flex-fill" onclick="retryPrint(${idx})"><i class="bi bi-printer"></i> Ticket</button>
+                    </div>
+                </div>`;
+            });
+            body.innerHTML = html;
+        };
+
+        // --- ACCIONES HISTORIAL ---
+        window.retryWA = (idx) => {
+            const o = state.historyData[idx];
+            const tel = o.cliente_datos?.tel || ''; 
+            const itemsStr = o.detalles_orden.map(d => `${d.cantidad}x ${d.nombre_producto} ($${(d.cantidad * d.precio_unitario).toFixed(2)})`).join('\n');
+            
+            if(o.tipo === 'restaurante') {
+                Swal.fire({title:'Teléfono Cliente', input:'tel'}).then(r=>{if(r.value) enviarTicketWA(r.value, o.total, itemsStr)});
+            } else {
+                if(!tel) return Swal.fire('Sin teléfono', 'No hay número registrado.', 'info');
+                enviarTicketWA(tel, o.total, itemsStr);
+            }
+        };
+
+        window.retryPrint = (idx) => {
+            const o = state.historyData[idx];
+            imprimirTicketReal(o.detalles_orden, o.total);
+        };
+
+        // --- NAVEGACIÓN MODOS ---
+        window.setMode = async (mode) => {
+            state.mode = mode;
+            if (mode === 'restaurante') {
+                // document.getElementById('subHeader').innerText = "Selección de Mesa"; 
+                await cargarZonas();
+                showView('view-mesas');
+            } else if (mode === 'domicilio') {
+                // document.getElementById('subHeader').innerText = "Datos de Envío";
+                await cargarRepartidores();
+                showView('view-delivery');
+                setTimeout(initMap, 500); 
+            } else if (mode === 'rapido') {
+                // document.getElementById('subHeader').innerText = "Venta Mostrador";
+                renderPOS();
+            }
+        };
+
+        // --- RESTAURANTE: MESAS + NOTIFICACIONES ---
+        async function cargarZonas() {
+            const { data: zonas } = await supabase.from('zonas').select('*').eq('empresa_id', state.empresa_id);
+            const { data: mesas } = await supabase.from('mesas').select('*').eq('empresa_id', state.empresa_id).order('nombre_mesa');
+            const { data: ocupadas } = await supabase.from('ordenes').select('id, mesa_id').eq('empresa_id', state.empresa_id).eq('estado', 'abierta');
+            
+            // BUSCAMOS ITEMS LISTOS (Campana)
+            const { data: listos } = await supabase.from('detalles_orden').select('orden_id').eq('estado', 'listo');
+            const ordenesConNotif = new Set(listos ? listos.map(l => l.orden_id) : []);
+
+            const cont = document.getElementById('zonasContainer'); cont.innerHTML = '';
+            
+            zonas.forEach(z => {
+                const mesasZona = mesas.filter(m => m.zona_id === z.id);
+                let mHtml = '';
+                mesasZona.forEach(m => {
+                    const ord = ocupadas.find(o => o.mesa_id === m.id);
+                    const isBusy = !!ord;
+                    const tieneNotif = isBusy && ordenesConNotif.has(ord.id);
+                    const cssClass = isBusy ? 'mesa-ocupada' : 'mesa-libre';
+                    const badge = isBusy ? `<span class="mesa-badge text-danger"><i class="bi bi-circle-fill small"></i> Ocupada</span>` : '';
+                    
+                    mHtml += `
+                    <div class="col-4 col-md-3 mb-3">
+                        <div class="mesa-card shadow-sm ${cssClass}" onclick="selectMesa('${m.id}', '${m.nombre_mesa}', ${isBusy})">
+                            ${tieneNotif ? '<div class="bell-notif"><i class="bi bi-bell-fill"></i></div>' : ''}
+                            ${badge}
+                            <i class="bi bi-aspect-ratio fs-2 mb-1"></i>
+                            <div class="fw-bold lh-1 text-center px-1">${m.nombre_mesa}</div>
+                        </div>
+                    </div>`;
+                });
+                cont.innerHTML += `<h6 class="text-secondary fw-bold mt-3 border-bottom pb-2">${z.nombre}</h6><div class="row g-2">${mHtml}</div>`;
+            });
+        }
+
+        window.selectMesa = async (id, nombre, isBusy) => {
+            state.mesaId = id; state.mesaNombre = nombre;
+            state.cart = []; state.sentItems = []; state.ordenIdActual = null;
+            mostrarCampanaGrande(false); // Reset al entrar
+            if(isBusy) {
+                const { data } = await supabase.from('ordenes').select('id').eq('mesa_id', id).eq('estado', 'abierta').single();
+                if(data) { state.ordenIdActual = data.id; await fetchOrdenActiva(data.id); }
+            }
+            renderPOS();
+        };
+
+        async function fetchOrdenActiva(ordenId) {
+            const { data } = await supabase.from('detalles_orden').select('*').eq('orden_id', ordenId);
+            state.sentItems = data || [];
+            updateCartUI();
+
+            // Verificar si hay algo listo para activar campana grande
+            const hayListos = state.sentItems.some(i => i.estado === 'listo');
+            mostrarCampanaGrande(hayListos);
+        }
+
+        // --- MAPAS (Domicilio) ---
+        function initMap() {
+            if(state.map) return;
+            state.map = L.map('map').setView([19.4326, -99.1332], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(state.map);
+            state.marker = L.marker([19.4326, -99.1332], {draggable: true}).addTo(state.map);
+            state.marker.on('dragend', function(e) {
+                const {lat, lng} = state.marker.getLatLng();
+                document.getElementById('cli_lat').value = lat; document.getElementById('cli_lng').value = lng;
+            });
+            if(navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(p => {
+                    const { latitude, longitude } = p.coords;
+                    state.map.setView([latitude, longitude], 16);
+                    state.marker.setLatLng([latitude, longitude]);
+                    document.getElementById('cli_lat').value = latitude; document.getElementById('cli_lng').value = longitude;
+                });
+            }
+        }
+        window.startDeliveryOrder = () => {
+            const nom=document.getElementById('cli_nom').value;
+            const tel=document.getElementById('cli_tel').value;
+            const dir=document.getElementById('cli_dir').value;
+            const rep=document.getElementById('selRepartidor').value;
+            if(!nom||!tel||!dir||!rep) return Swal.fire('Faltan datos','Completa el formulario','warning');
+            state.deliveryInfo = { nom, tel, dir, repId: rep, lat: document.getElementById('cli_lat').value, lng: document.getElementById('cli_lng').value };
+            renderPOS();
+        };
+        async function cargarRepartidores() {
+            const { data } = await supabase.from('usuarios').select('*').eq('empresa_id', state.empresa_id).eq('rol', 'repartidor');
+            const s = document.getElementById('selRepartidor'); s.innerHTML='<option value="">Elegir...</option>';
+            data?.forEach(u=>s.innerHTML+=`<option value="${u.id}">${u.nombre_completo}</option>`);
+        }
+
+        // --- POS & CARRITO ---
+        async function cargarProductos() {
+            const { data } = await supabase.from('productos').select('*').eq('empresa_id', state.empresa_id).gt('stock',0);
+            state.productos = data || [];
+        }
+
+        function renderPOS() {
+            showView('view-pos');
+            document.getElementById('bottom-cart').style.display = 'flex';
+            // document.getElementById('subHeader').innerText = state.mode === 'restaurante' ? `Mesa: ${state.mesaNombre}` : 'Tomando Orden';
+            const cats = [...new Set(state.productos.map(p => p.categoria || 'Varios'))];
+            const f = document.getElementById('catFilters');
+            let h = `<button class="btn btn-dark btn-sm me-2 rounded-pill px-3 shadow-sm" onclick="filterProd('all')">Todos</button>`;
+            cats.forEach(c => h += `<button class="btn btn-white border btn-sm me-2 rounded-pill px-3" onclick="filterProd('${c}')">${c}</button>`);
+            f.innerHTML = h;
+            filterProd('all');
+            updateCartUI();
+        }
+
+        window.filterProd = (cat) => {
+            const g = document.getElementById('prodGrid'); g.innerHTML = '';
+            const list = cat === 'all' ? state.productos : state.productos.filter(p => p.categoria === cat);
+            list.forEach(p => {
+                g.innerHTML += `
+                <div class="col-6 col-md-4 col-lg-3">
+                    <div class="prod-card" onclick='add(${JSON.stringify(p)})'>
+                        <span class="stock-badge">${p.stock} pz</span>
+                        <img src="${p.imagen_url || 'https://via.placeholder.com/150'}" class="prod-img">
+                        <div class="p-2">
+                            <div class="fw-bold text-truncate small">${p.nombre}</div>
+                            <div class="d-flex justify-content-between align-items-center mt-1">
+                                <span class="text-primary fw-bold">$${p.precio_venta}</span>
+                                <i class="bi bi-plus-circle-fill text-success fs-4"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            });
+        };
+
+        window.add = (p) => {
+            const inCart = state.cart.find(x => x.id === p.id);
+            const qtyInCart = inCart ? inCart.qty : 0;
+            if(qtyInCart + 1 > p.stock) return Swal.fire({toast:true, position:'top', icon:'error', title:'Stock insuficiente', showConfirmButton:false, timer:1000});
+            if(inCart) inCart.qty++; else state.cart.push({...p, qty: 1});
+            updateCartUI();
+        };
+
+        function updateCartUI() {
+            // NUEVO: Total excluye cancelados
+            const totalSent = state.sentItems.reduce((s,i) => s + (i.estado !== 'cancelado' ? i.cantidad * i.precio_unitario : 0), 0);
+            const totalNew = state.cart.reduce((s,i) => s + (i.qty * i.precio_venta), 0);
+            document.getElementById('cartCount').innerText = state.cart.reduce((s,i)=>s+i.qty, 0) + state.sentItems.reduce((s,i)=>s+(i.estado!=='cancelado'?i.cantidad:0), 0);
+            document.getElementById('cartTotal').innerText = `$${(totalSent + totalNew).toFixed(2)}`;
+        }
+
+        window.openCartModal = () => {
+            document.getElementById('lblMesaCart').innerText = state.mode === 'restaurante' ? state.mesaNombre : '';
+            
+            // LISTA 1: YA ENVIADO (Aquí aparece el botón Entregar)
+            const dSent = document.getElementById('cartSent'); dSent.innerHTML = '';
+            if(state.sentItems.length > 0) {
+                dSent.innerHTML = '<div class="px-3 py-2 bg-light small fw-bold text-muted border-bottom">EN COCINA / BARRA</div>';
+                state.sentItems.forEach(i => {
+                    let stHtml = '';
+                    let btnDel = '';
+
+                    // NUEVO: Botón de borrar (solo si no entregado ni cancelado)
+                    if(i.estado !== 'entregado' && i.estado !== 'cancelado') {
+                        btnDel = `<button class="btn btn-sm btn-outline-danger ms-2 border-0" onclick="cancelarItemIndidual('${i.id}')"><i class="bi bi-trash3-fill"></i></button>`;
+                    }
+
+                    if(i.estado === 'listo') {
+                        stHtml = `<button class="btn btn-sm btn-success py-0 px-2 fw-bold" onclick="confirmarEntregaItem('${i.id}')"><i class="bi bi-check2"></i> Entregar</button>`;
+                    } else if(i.estado === 'entregado') {
+                        stHtml = `<span class="badge bg-light text-dark border">En Mesa</span>`;
+                    } else if(i.estado === 'cancelado') {
+                        stHtml = `<span class="badge bg-danger text-white">CANCELADO</span>`;
+                    } else {
+                        stHtml = `<span class="badge bg-secondary">Prep...</span>`;
+                    }
+
+                    const rowClass = i.estado === 'cancelado' ? 'item-canceled' : 'item-old';
+
+                    dSent.innerHTML += `
+                    <div class="${rowClass} p-3 border-bottom d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="text-muted">${i.nombre_producto}</div>
+                            <small class="text-muted">$${i.precio_unitario} x ${i.cantidad}</small>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="text-end me-2">
+                                <div class="fw-bold text-muted">$${(i.precio_unitario * i.cantidad).toFixed(2)}</div>
+                                ${stHtml}
+                            </div>
+                            ${btnDel}
+                        </div>
+                    </div>`;
+                });
+            }
+
+            // LISTA 2: NUEVO (Carrito)
+            const dNew = document.getElementById('cartNew'); dNew.innerHTML = '';
+            if(state.cart.length > 0) {
+                dNew.innerHTML = '<div class="px-3 py-2 bg-light small fw-bold text-dark border-bottom">NUEVO (POR ENVIAR)</div>';
+                state.cart.forEach((i, idx) => {
+                    dNew.innerHTML += `
+                    <div class="item-new p-3 border-bottom d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="fw-bold">${i.nombre}</div>
+                            <small>$${i.precio_venta} x ${i.qty}</small>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <span class="fw-bold me-3">$${(i.precio_venta * i.qty).toFixed(2)}</span>
+                            <button class="btn btn-sm btn-outline-danger border-0" onclick="del(${idx})"><i class="bi bi-trash-fill"></i></button>
+                        </div>
+                    </div>`;
+                });
+            }
+            document.getElementById('btnSend').disabled = state.cart.length === 0;
+            document.getElementById('btnPay').disabled = (state.sentItems.length === 0 && state.cart.length === 0);
+            new bootstrap.Modal(document.getElementById('modalCart')).show();
+        };
+
+        window.del = (idx) => { state.cart.splice(idx,1); updateCartUI(); window.openCartModal(); };
+
+        window.confirmarEntregaItem = async (id) => {
+            const { error } = await supabase.from('detalles_orden').update({ estado: 'entregado' }).eq('id', id);
+            if(!error) {
+                await fetchOrdenActiva(state.ordenIdActual);
+                
+                // --- CORRECCIÓN PANTALLA GRIS ---
+                // Cerrar modal manualmente y limpiar backdrop de bootstrap
+                const modalEl = document.getElementById('modalCart');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if(modal) modal.hide();
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                document.body.classList.remove('modal-open');
+                document.body.style = '';
+
+                cargarZonas(); 
+                mostrarCampanaGrande(false); // Apagar campana
+            }
+        };
+
+        // --- ENVIAR A COCINA (SIN RESTAR STOCK) ---
+        window.enviarComanda = async () => {
+            if(state.cart.length === 0) return;
+            if(!state.ordenIdActual) {
+                const payload = {
+                    empresa_id: state.empresa_id, tipo: state.mode, mesa_id: state.mesaId || null,
+                    repartidor_id: state.deliveryInfo.repId || null, cliente_datos: state.deliveryInfo, estado: 'abierta'
+                };
+                const { data, error } = await supabase.from('ordenes').insert([payload]).select().single();
+                if(error) return Swal.fire('Error', error.message, 'error');
+                state.ordenIdActual = data.id;
+            }
+            let cocina=0, barra=0;
+            for(const item of state.cart) {
+                await supabase.from('detalles_orden').insert([{
+                    orden_id: state.ordenIdActual, producto_id: item.id, cantidad: item.qty,
+                    precio_unitario: item.precio_venta, nombre_producto: item.nombre, destino: item.destino, estado: 'pendiente'
+                }]);
+                if(item.destino==='cocina') cocina++; else barra++;
+            }
+            Swal.fire({ title:'¡Enviado!', text:`${cocina} a Cocina, ${barra} a Barra`, icon:'success', timer:1500 });
+            state.cart = []; await fetchOrdenActiva(state.ordenIdActual); await cargarProductos();
+            bootstrap.Modal.getInstance(document.getElementById('modalCart')).hide();
+        };
+
+        // --- COBRAR (AQUI SE RESTA STOCK Y SE PREPARA TICKET) ---
+        window.prepararCobro = async () => {
+            if(state.cart.length > 0) {
+                const res = await Swal.fire({title:'Items sin enviar', text:'Se enviarán y cobrarán ahora. ¿Seguro?', showCancelButton:true, confirmButtonText:'Sí, Cobrar'});
+                if(!res.isConfirmed) return;
+                await enviarComanda();
+            }
+            if(!state.ordenIdActual) return;
+
+            const { data: detalles } = await supabase.from('detalles_orden').select('*').eq('orden_id', state.ordenIdActual).neq('estado', 'cancelado');
+            const totalFinal = detalles.reduce((sum, d) => sum + (d.cantidad * d.precio_unitario), 0);
+
+            const confirm = await Swal.fire({title: `Total: $${totalFinal.toFixed(2)}`, text: "¿Finalizar y Descontar Inventario?", icon: 'question', showCancelButton: true, confirmButtonText: 'Cobrar'});
+            if(confirm.isConfirmed) {
+                
+                if (state.mode !== 'domicilio') {
+                    for(const d of detalles) {
+                         const { data: p } = await supabase.from('productos').select('stock').eq('id', d.producto_id).single();
+                         if(p) await supabase.from('productos').update({ stock: p.stock - d.cantidad }).eq('id', d.producto_id);
+                    }
+                }
+
+                const nuevoEstado = state.mode === 'domicilio' ? 'enviada' : 'pagada';
+                await supabase.from('ordenes').update({
+                    estado: nuevoEstado, total: totalFinal
+                }).eq('id', state.ordenIdActual);
+                
+                // --- CORRECCIÓN PANTALLA GRIS ---
+                const modalEl = document.getElementById('modalCart');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if(modal) modal.hide();
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                document.body.classList.remove('modal-open');
+                document.body.style = '';
+
+                // DATOS TICKET/WA
+                const itemsList = detalles.map(d => `${d.cantidad}x ${d.nombre_producto} ($${(d.cantidad * d.precio_unitario).toFixed(2)})`).join('\n');
+                
+                await Swal.fire({
+                    title: '¡Cobro Exitoso!',
+                    html: `
+                    <div class="d-grid gap-2">
+                        <button id="btnWa" class="btn btn-success"><i class="bi bi-whatsapp"></i> Enviar WhatsApp</button>
+                        <button id="btnPrint" class="btn btn-dark"><i class="bi bi-printer"></i> Imprimir Ticket</button>
+                    </div>`,
+                    icon: 'success', showConfirmButton: false,
+                    didOpen: () => {
+                        const tel = state.mode === 'domicilio' ? state.deliveryInfo.tel : ''; 
+                        
+                        document.getElementById('btnWa').onclick = () => {
+                            if(state.mode === 'restaurante') {
+                                Swal.fire({title:'Teléfono Cliente', input:'tel'}).then((res)=>{ if(res.value) enviarTicketWA(res.value, totalFinal, itemsList); });
+                            } else { enviarTicketWA(tel, totalFinal, itemsList); }
+                        };
+
+                        document.getElementById('btnPrint').onclick = () => { imprimirTicketReal(detalles, totalFinal); };
+                    }
+                });
+
+                setTimeout(() => location.reload(), 8000);
+            }
+        };
+
+        // --- WHATSAPP CORREGIDO ---
+        function enviarTicketWA(tel, total, itemsStr) {
+            // Se usa state.empresa_nombre que viene de la BD
+            const mensaje = `Hola, gracias por visitar *${state.empresa_nombre}*. tu pedido fue\n\n${itemsStr}\n\n*TOTAL: $${total.toFixed(2)}*`;
+            window.open(`https://wa.me/52${tel}?text=${encodeURIComponent(mensaje)}`, '_blank');
+        }
+
+        // --- IMPRIMIR TICKET REAL (Corregido blanco) ---
+        function imprimirTicketReal(items, total) {
+            const tktItems = document.getElementById('tkt-items');
+            tktItems.innerHTML = '';
+            
+            items.forEach(i => {
+                tktItems.innerHTML += `
+                <div style="display:flex; justify-content:space-between; margin-bottom:2px;">
+                    <span>${i.cantidad} ${i.nombre_producto}</span>
+                    <span>$${(i.cantidad * i.precio_unitario).toFixed(2)}</span>
+                </div>`;
+            });
+            document.getElementById('tkt-total').innerText = `$${total.toFixed(2)}`;
+            
+            // Retraso AUMENTADO para asegurar que el DOM se pinte antes de imprimir (Fix Página Blanca)
+            setTimeout(() => {
+                window.print();
+            }, 800);
+        }
+
+        // --- CANCELACIONES ---
+        window.cancelarItemIndidual = async (detalleId) => {
+            const { isConfirmed } = await Swal.fire({ title: '¿Cancelar Producto?', text: "Se marcará como cancelado.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Sí, Cancelar' });
+            if (isConfirmed) {
+                const { error } = await supabase.from('detalles_orden').update({estado: 'cancelado'}).eq('id', detalleId);
+                
+                if (error) { Swal.fire('Error', error.message, 'error'); }
+                else { 
+                    await fetchOrdenActiva(state.ordenIdActual); 
+                    window.openCartModal(); 
+                    Swal.fire({toast:true, position:'top', icon:'success', title:'Cancelado', timer:1500, showConfirmButton:false}); 
+                }
+            }
+        };
+
+        window.cancelarOrdenCompleta = async () => {
+            const { isConfirmed } = await Swal.fire({ title: '¿ANULAR MESA?', text: "Se cancelarán todos los pedidos.", icon: 'error', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Sí, Anular Mesa' });
+            if (isConfirmed) {
+                await supabase.from('detalles_orden').update({estado: 'cancelado'}).eq('orden_id', state.ordenIdActual);
+                await supabase.from('ordenes').update({ estado: 'cancelada', total: 0 }).eq('id', state.ordenIdActual);
+                
+                bootstrap.Modal.getInstance(document.getElementById('modalCart')).hide();
+                cargarZonas(); 
+                Swal.fire('Mesa Anulada', 'La orden ha sido cancelada.', 'success');
+            }
+        };
+        
+        // --- REPARTIDOR ---
+        async function cargarEntregasRepartidor() { 
+            const { data } = await supabase.from('ordenes').select('*').eq('repartidor_id', state.user.id).eq('estado', 'enviada').order('created_at', {ascending: false});
+            const list = document.getElementById('listEntregas'); list.innerHTML = '';
+            if(!data || data.length === 0) { list.innerHTML = '<div class="alert alert-success">No tienes entregas pendientes</div>'; return; }
+            data.forEach(o => {
+                const cli = o.cliente_datos;
+                list.innerHTML += `
+                <div class="card mb-3 shadow-sm border-start border-5 border-primary"><div class="card-body">
+                    <h5 class="fw-bold">${cli.nom}</h5><p class="mb-1 small">${cli.dir}</p><p class="fw-bold text-success">Cobrar: $${o.total}</p>
+                    <div class="d-flex gap-2"><a href="tel:${cli.tel}" class="btn btn-outline-secondary flex-fill">Llamar</a>
+                    <a href="https://www.google.com/maps/search/?api=1&query=${cli.lat},${cli.lng}" target="_blank" class="btn btn-outline-primary flex-fill">Mapa</a></div>
+                    <button class="btn btn-success w-100 mt-2" onclick="marcarEntregadoRep('${o.id}')">ENTREGADO</button>
+                </div></div>`;
+            });
+        }
+        window.marcarEntregadoRep = async (id) => {
+            if(confirm('¿Pedido entregado y cobrado?')) { await supabase.from('ordenes').update({ estado: 'entregada' }).eq('id', id); cargarEntregasRepartidor(); }
+        }
+
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -11,7 +11,7 @@
             background: #f8f9fa; 
             height: 100vh; 
             display: flex; 
-            flex-direction: column;
+            flex-direction: column; 
             align-items: center; 
             justify-content: center; 
         }
@@ -21,51 +21,54 @@
             border: none; 
             border-radius: 15px; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
-            background: white;
+            background: white; 
+            padding: 2rem;
         }
-        .footer-branding {
-            margin-top: 20px;
-            text-align: center;
-            font-size: 0.9rem;
-            color: #6c757d;
+        .footer-branding { 
+            margin-top: 20px; 
+            text-align: center; 
+            font-size: 0.9rem; 
+            color: #6c757d; 
         }
-        .footer-branding a {
-            text-decoration: none;
-            color: #0d6efd;
-            font-weight: bold;
+        .footer-branding a { 
+            text-decoration: none; 
+            color: #0d6efd; 
+            font-weight: bold; 
         }
     </style>
 </head>
 <body>
 
-    <div class="card card-login p-4">
+    <div class="card card-login">
         <h2 class="text-center fw-bold mb-1 text-primary">Sistemas DevPatec</h2>
         <p class="text-center text-muted small mb-4">Gestión Inteligente de Restaurantes</p>
         
-        <div id="msg" class="text-center mb-3 small"></div>
+        <div id="msg" class="text-center mb-3 small fw-bold"></div>
         
         <form id="loginForm">
             <div class="mb-3">
-                <label class="form-label">Usuario</label>
+                <label class="form-label small fw-bold">Usuario</label>
                 <div class="input-group">
-                    <span class="input-group-text"><i class="bi bi-person"></i></span>
-                    <input type="text" id="user" class="form-control" placeholder="admin" required>
+                    <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
+                    <input type="text" id="user" class="form-control" required placeholder="Ingresa tu usuario">
                 </div>
             </div>
-            <div class="mb-3">
-                <label class="form-label">Contraseña</label>
+            <div class="mb-4">
+                <label class="form-label small fw-bold">Contraseña</label>
                 <div class="input-group">
-                    <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                    <input type="password" id="pass" class="form-control" placeholder="******" required>
+                    <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
+                    <input type="password" id="pass" class="form-control" required placeholder="••••••">
                 </div>
             </div>
-            <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">INGRESAR</button>
+            <button type="submit" class="btn btn-primary w-100 py-2 fw-bold shadow-sm" id="btnLogin">
+                INGRESAR AL SISTEMA
+            </button>
         </form>
     </div>
 
     <div class="footer-branding">
-        <span>by <br> 
-            <a href="https://wa.me/524741082768?text=Hola%20Ing.%20Mauricio,%20me%20interesa%20información%20sobre%20el%20Sistema%20DevPatec" target="_blank">
+        <span>Desarrollado por <br> 
+            <a href="https://wa.me/524741082768?text=Hola%20Ing.%20Mauricio,%20necesito%20soporte%20del%20sistema" target="_blank">
                 Ing. Jose Mauricio Hernández Bueno
             </a>
         </span>
@@ -76,45 +79,88 @@
         import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
         const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+        // Limpiar sesión al cargar login por seguridad
+        localStorage.clear();
+
         document.getElementById('loginForm').onsubmit = async (e) => {
             e.preventDefault();
+            const btn = document.getElementById('btnLogin');
+            const m = document.getElementById('msg');
             const u = document.getElementById('user').value.trim();
             const p = document.getElementById('pass').value.trim();
-            const m = document.getElementById('msg');
 
-            m.innerText = "Verificando...";
-            m.style.color = "blue";
+            btn.disabled = true;
+            btn.innerText = "Autenticando...";
+            m.innerText = "";
 
             try {
+                // 1. Buscar usuario
                 const { data: usuario, error } = await supabase
                     .from('usuarios')
                     .select('*')
                     .eq('username', u)
                     .eq('password', p)
-                    .eq('activo', true)
                     .maybeSingle();
 
                 if (error) throw error;
 
                 if (!usuario) {
-                    m.innerText = "Credenciales incorrectas";
+                    m.innerText = "Usuario o contraseña incorrectos";
                     m.style.color = "red";
+                    btn.disabled = false;
+                    btn.innerText = "INGRESAR AL SISTEMA";
                     return;
                 }
 
+                // 2. Guardar sesión local
                 localStorage.setItem('usuario_actual', usuario.username);
                 localStorage.setItem('rol', usuario.rol);
-                localStorage.setItem('empresa_id', usuario.empresa_id);
+                localStorage.setItem('empresa_id', usuario.empresa_id || '');
+                localStorage.setItem('user_id', usuario.id);
 
-                if (usuario.rol === 'super_admin') {
-                    window.location.href = "dashboard.html";
-                } else {
-                    window.location.href = "panel-dueno.html";
-                }
+                // 3. SEMÁFORO DE REDIRECCIÓN (AQUÍ ESTÁ LA MAGIA)
+                m.innerText = `Bienvenido ${usuario.rol.toUpperCase()}...`;
+                m.style.color = "green";
+
+                setTimeout(() => {
+                    switch(usuario.rol) {
+                        // ADMINISTRADORES
+                        case 'super_admin':
+                            window.location.href = "dashboard.html";
+                            break;
+                        case 'dueno':
+                        case 'gerente': 
+                        case 'supervisor':
+                            window.location.href = "panel-dueno.html";
+                            break;
+                        
+                        // OPERATIVOS (Usan la nueva App de Comandas)
+                        case 'mesero':
+                        case 'caja':
+                        case 'repartidor': // El archivo comandas.html detecta si es repartidor y cambia la vista
+                            window.location.href = "comandas.html"; 
+                            break;
+                        
+                        // PANTALLAS DE PRODUCCIÓN (Futuro)
+                        case 'cocina':
+                            window.location.href = "cocina.html"; 
+                            break;
+                        case 'bar':
+                            window.location.href = "bar.html"; 
+                            break;
+                            
+                        default:
+                            m.innerText = "Rol sin acceso definido.";
+                            btn.disabled = false;
+                    }
+                }, 800);
 
             } catch (err) {
-                m.innerText = "Error: " + err.message;
+                console.error(err);
+                m.innerText = "Error de conexión";
                 m.style.color = "red";
+                btn.disabled = false;
+                btn.innerText = "INGRESAR AL SISTEMA";
             }
         };
     </script>

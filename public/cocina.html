@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pantalla de Cocina</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body { background-color: #212529; color: white; font-family: 'Segoe UI', sans-serif; }
+        .navbar { background: #1a1e21; border-bottom: 3px solid #e67e22; }
+        .ticket-card { background: white; color: black; border-radius: 8px; overflow: hidden; animation: fadeIn 0.5s; }
+        .ticket-header { background: #e67e22; color: white; padding: 10px; font-weight: bold; display: flex; justify-content: space-between; }
+        .ticket-body { padding: 10px; font-size: 1.1rem; }
+        .ticket-footer { padding: 5px; text-align: center; background: #eee; }
+        .item-row { border-bottom: 1px dashed #ccc; padding: 5px 0; display: flex; justify-content: space-between; }
+        .blink { animation: blinker 1.5s linear infinite; color: red; font-weight: bold; }
+        @keyframes blinker { 50% { opacity: 0; } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar sticky-top px-3 py-2">
+        <div class="d-flex align-items-center w-100 justify-content-between">
+            <div class="d-flex align-items-center">
+                <button class="btn btn-sm btn-outline-secondary me-3 border-0" onclick="location.href='index.html'"><i class="bi bi-arrow-left"></i></button>
+                <div class="d-flex flex-column lh-1">
+                    <span class="text-warning fw-bold small">COCINA</span>
+                    <span class="fw-bold fs-5" id="headerTitle">Cargando...</span>
+                    <img src="" id="headerLogo" style="height:30px; width:auto; background:white; padding:2px; border-radius:4px; margin-top:3px; display:none;">
+                </div>
+            </div>
+            <div class="text-end">
+                <small class="text-secondary d-block" style="font-size:0.7rem">Usuario</small>
+                <span class="fw-bold" id="userName">...</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-3">
+        <div id="gridTickets" class="row g-3"></div>
+        <div id="loading" class="text-center mt-5"><div class="spinner-border text-warning"></div><p>Buscando comandas...</p></div>
+        <div id="noData" class="text-center mt-5 text-muted" style="display:none;"><h4><i class="bi bi-check-circle"></i> Todo limpio</h4><p>No hay órdenes pendientes en cocina.</p></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
+        import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
+        const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let empresa_id = null;
+
+        window.onload = async () => {
+            const uid = localStorage.getItem('user_id');
+            if(!uid) window.location.href = 'index.html';
+
+            // 1. OBTENER USUARIO
+            const { data: usuario } = await supabase.from('usuarios').select('nombre_completo, empresa_id').eq('id', uid).single();
+            if(usuario) {
+                empresa_id = usuario.empresa_id;
+                document.getElementById('userName').innerText = usuario.nombre_completo;
+                
+                // 2. OBTENER EMPRESA
+                const { data: emp } = await supabase.from('empresas').select('nombre_negocio, logo_url').eq('id', empresa_id).single();
+                if(emp) {
+                    document.getElementById('headerTitle').innerText = emp.nombre_negocio;
+                    if(emp.logo_url) { const img = document.getElementById('headerLogo'); img.src=emp.logo_url; img.style.display='block'; }
+                }
+                cargarComandas();
+                suscripcionRealtime();
+            }
+        };
+
+        async function cargarComandas() {
+            // Buscar items pendientes de COCINA
+            const { data } = await supabase.from('detalles_orden')
+                .select('*, ordenes(mesas(nombre_mesa), tipo, cliente_datos)')
+                .eq('estado', 'pendiente')
+                .eq('destino', 'cocina') // FILTRO CLAVE
+                .order('created_at', {ascending: true});
+            
+            renderTickets(data || []);
+        }
+
+        function renderTickets(items) {
+            const grid = document.getElementById('gridTickets');
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('noData').style.display = items.length === 0 ? 'block' : 'none';
+            grid.innerHTML = '';
+
+            // Agrupar por Orden ID
+            const agrupados = {};
+            items.forEach(i => {
+                if(!agrupados[i.orden_id]) agrupados[i.orden_id] = [];
+                agrupados[i.orden_id].push(i);
+            });
+
+            Object.keys(agrupados).forEach(ordenId => {
+                const grupo = agrupados[ordenId];
+                const info = grupo[0].ordenes;
+                const origen = info.tipo === 'restaurante' ? `Mesa: ${info.mesas?.nombre_mesa || '?'}` : (info.tipo === 'domicilio' ? 'DOMICILIO' : 'PARA LLEVAR');
+                const tiempo = new Date(grupo[0].created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+
+                let itemsHtml = '';
+                grupo.forEach(it => {
+                    itemsHtml += `<div class="item-row"><span class="fw-bold fs-5">${it.cantidad}x ${it.nombre_producto}</span><button class="btn btn-sm btn-success" onclick="marcarListo('${it.id}')"><i class="bi bi-check"></i></button></div>`;
+                });
+
+                grid.innerHTML += `
+                <div class="col-12 col-md-6 col-lg-4 col-xl-3">
+                    <div class="ticket-card shadow">
+                        <div class="ticket-header"><span>${origen}</span><span>${tiempo}</span></div>
+                        <div class="ticket-body">${itemsHtml}</div>
+                    </div>
+                </div>`;
+            });
+        }
+
+        window.marcarListo = async (id) => {
+            await supabase.from('detalles_orden').update({estado: 'listo'}).eq('id', id);
+            cargarComandas();
+        };
+
+        function suscripcionRealtime() {
+            supabase.channel('cocina-realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'detalles_orden', filter: `destino=eq.cocina` }, () => {
+                cargarComandas();
+                const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+                audio.play().catch(e=>{});
+            }).subscribe();
+        }
+    </script>
+</body>
+</html>
