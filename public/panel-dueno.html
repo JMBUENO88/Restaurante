@@ -459,6 +459,7 @@
         const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
         const empresa_id = localStorage.getItem('empresa_id');
+        const user_rol = localStorage.getItem('rol');
 
         // --- UTILIDADES ---
         window.previewFile = (inputId, imgId) => {
@@ -470,17 +471,78 @@
             }
         };
 
-        // --- INICIALIZACIÓN ---
+        // --- INICIALIZACIÓN CON SEGURIDAD REFORZADA ---
         window.onload = async () => {
             if(!empresa_id) { window.location.href = 'index.html'; return; }
             
-            // Fecha bonita
-            const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-            document.getElementById('dateDisplay').innerText = new Date().toLocaleDateString('es-MX', opts);
+            try {
+                // 1. Solicitamos TODOS los datos de la empresa para evitar errores de nombres de columna
+                const { data: empresa, error } = await supabase
+                    .from('empresas')
+                    .select('*') 
+                    .eq('id', empresa_id)
+                    .single();
 
-            // Cargar datos
-            await cargarEmpresa();
-            cargarTodo();
+                if (error || !empresa) {
+                    console.error("Error BD:", error);
+                    logout();
+                    return;
+                }
+
+                // 2. Normalización de Datos para la comprobación
+                // Buscamos la fecha en cualquier columna probable
+                const fechaBD = empresa.fecha_vencimiento || empresa.vencimiento || empresa.fecha_fin;
+                // Buscamos el estado y lo convertimos a minúsculas
+                const estadoBD = empresa.estado_licencia || empresa.estatus || empresa.estado || '';
+                const estadoLower = estadoBD.toLowerCase();
+
+                const hoy = new Date();
+                const vencimiento = new Date(fechaBD);
+
+                // 3. Lógica de Bloqueo
+                const estaVencidaPorTexto = estadoLower.includes('vencid') || estadoLower === 'inactiva' || estadoLower === 'suspendida';
+                const estaVencidaPorFecha = vencimiento < hoy;
+
+                // Si NO es super admin, ejecutamos el bloqueo
+                if (user_rol !== 'super_admin') {
+                    if (estaVencidaPorTexto || estaVencidaPorFecha) {
+                        
+                        await Swal.fire({
+                            title: 'ACCESO DENEGADO',
+                            html: `
+                                <div class="text-start">
+                                    <p>La licencia de <b>${empresa.nombre_negocio}</b> ha expirado.</p>
+                                    <small class="text-muted">Fecha límite: ${fechaBD ? new Date(fechaBD).toLocaleDateString() : 'No definida'}</small>
+                                </div>
+                            `,
+                            icon: 'error',
+                            confirmButtonText: 'Salir',
+                            allowOutsideClick: false,
+                            allowEscapeKey: false
+                        });
+                        
+                        logout();
+                        return; // Detiene la carga del resto del panel
+                    }
+                } else {
+                    // Si es Super Admin, solo avisamos
+                    if (estaVencidaPorTexto || estaVencidaPorFecha) {
+                        const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 4000 });
+                        Toast.fire({ icon: 'warning', title: 'Modo SuperAdmin: Empresa vencida' });
+                    }
+                }
+
+                // 4. Si todo está en orden, cargamos la interfaz
+                const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                document.getElementById('dateDisplay').innerText = new Date().toLocaleDateString('es-MX', opts);
+
+                await cargarEmpresa();
+                cargarTodo();
+
+            } catch (err) {
+                console.error("Error crítico:", err);
+                alert("Error de conexión al verificar licencia.");
+            }
         };
 
         window.logout = () => { localStorage.clear(); window.location.href = 'index.html'; };
